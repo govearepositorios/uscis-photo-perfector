@@ -1,10 +1,9 @@
 
 import { toast } from "sonner";
 import { loadImage } from "../imageUtils";
-import { useAdvancedBackgroundRemoval } from "./advancedBackgroundRemoval";
-import { useAlternativeBackgroundRemoval } from "./alternativeBackgroundRemoval";
+import { removeBackground as huggingfaceRemoveBackground } from "./backgroundRemover";
 
-// Remove background from an image using the most appropriate method
+// Remove background from an image using the most reliable method
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob | null> => {
   try {
     console.log("Iniciando procesamiento de imagen:", imageElement.src.substring(0, 100) + "...");
@@ -12,15 +11,11 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     
     toast.info("Procesando imagen, por favor espere...", { duration: 3000 });
     
-    // SIEMPRE usar el método alternativo en este punto
-    console.log("Usando método alternativo optimizado para todas las imágenes");
-    return await useAlternativeBackgroundRemoval(imageElement);
+    console.log("Usando método Hugging Face con modelo de segmentación");
+    return await huggingfaceRemoveBackground(imageElement);
   } catch (error) {
     console.error('Error al eliminar el fondo:', error);
     toast.error("Error al procesar la imagen. Inténtelo de nuevo.");
     return null;
   }
 };
-
-// Re-export the individual implementation functions
-export { useAdvancedBackgroundRemoval, useAlternativeBackgroundRemoval };
