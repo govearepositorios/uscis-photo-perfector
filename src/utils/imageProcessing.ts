@@ -227,9 +227,10 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       
       console.log("Inicializando el modelo de segmentación...");
       
-      // Intentar usar un modelo más ligero para dispositivos con recursos limitados
+      // Removed the 'quantized' option that was causing the error
+      // and use 'device' option to improve performance if available
       const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512', {
-        quantized: true, // Usar modelo cuantizado para mejor rendimiento
+        device: 'webgpu', // Will fallback to CPU if WebGPU is not available
       });
       
       console.log("Modelo inicializado correctamente");
