@@ -7,8 +7,10 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "8080:80"  # Cambia el mapeo de puerto si es necesario
     restart: unless-stopped
-    # Si necesitas variables de entorno, descomenta y ajusta las siguientes líneas
-    # environment:
-    #   - NODE_ENV=production
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # Opcional: mapear volúmenes si necesitas persistencia
+      - ./logs:/app/logs
