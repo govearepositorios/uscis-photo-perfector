@@ -34,12 +34,6 @@ function resizeImageIfNeeded(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   return false;
 }
 
-// Function to detect the approximate position of shoulders based on the image height
-function estimateShoulderPosition(height: number): number {
-  // In a typical photo, shoulders are approximately 1/3 of the total height from the top
-  return Math.round(height * 0.4); // Adjusted to 40% of height which should include shoulders
-}
-
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob> => {
   try {
     console.log('Starting advanced background removal process...');
@@ -107,57 +101,6 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     maskedCtx.putImageData(maskedImageData, 0, 0);
     console.log('Mask applied successfully');
     
-    // Estimate shoulder position
-    const shoulderPosition = estimateShoulderPosition(maskedCanvas.height);
-    console.log(`Estimated shoulder position: ${shoulderPosition} px from top`);
-    
-    // Find the top of the head in the masked image
-    let topPosition = 0;
-    const dataForHeadDetection = maskedCtx.getImageData(0, 0, maskedCanvas.width, maskedCanvas.height).data;
-    
-    // Find first non-transparent pixel from top
-    outerLoop: for (let y = 0; y < maskedCanvas.height; y++) {
-      for (let x = 0; x < maskedCanvas.width; x++) {
-        const index = (y * maskedCanvas.width + x) * 4;
-        if (dataForHeadDetection[index + 3] > 50) { // If pixel is not transparent
-          topPosition = y;
-          break outerLoop;
-        }
-      }
-    }
-    
-    console.log(`Detected top of head at position: ${topPosition} px from top`);
-    
-    // Create canvas for cropped image
-    const croppedCanvas = document.createElement('canvas');
-    
-    // Calculate crop height to include from top of head to just below shoulders
-    // If topPosition is 0, use a default value (20% from top of image)
-    if (topPosition === 0) {
-      topPosition = Math.floor(maskedCanvas.height * 0.2);
-    }
-    
-    // Calculate height from top of head to shoulders, plus a bit more
-    const cropHeight = Math.min(
-      shoulderPosition - topPosition + maskedCanvas.height * 0.15, // Add 15% for below shoulders
-      maskedCanvas.height - topPosition
-    );
-    
-    croppedCanvas.width = maskedCanvas.width;
-    croppedCanvas.height = cropHeight;
-    const croppedCtx = croppedCanvas.getContext('2d');
-    
-    if (!croppedCtx) throw new Error('Could not get cropped canvas context');
-    
-    // Draw only the portion of the image from top of head to below shoulders
-    croppedCtx.drawImage(
-      maskedCanvas,
-      0, topPosition, maskedCanvas.width, cropHeight,
-      0, 0, croppedCanvas.width, croppedCanvas.height
-    );
-    
-    console.log(`Image cropped to shoulders. New dimensions: ${croppedCanvas.width}x${croppedCanvas.height}`);
-    
     // Create output canvas with USCIS dimensions and white background
     const outputCanvas = document.createElement('canvas');
     outputCanvas.width = PHOTO_REQUIREMENTS.width;
@@ -171,19 +114,19 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
     
     // Calculate scaling to fit the image with transparency
-    const scaleWidth = PHOTO_REQUIREMENTS.width / croppedCanvas.width;
-    const scaleHeight = PHOTO_REQUIREMENTS.height / croppedCanvas.height;
+    const scaleWidth = PHOTO_REQUIREMENTS.width / maskedCanvas.width;
+    const scaleHeight = PHOTO_REQUIREMENTS.height / maskedCanvas.height;
     const scale = Math.min(scaleWidth, scaleHeight);
     
-    const scaledWidth = croppedCanvas.width * scale;
-    const scaledHeight = croppedCanvas.height * scale;
+    const scaledWidth = maskedCanvas.width * scale;
+    const scaledHeight = maskedCanvas.height * scale;
     const offsetX = (PHOTO_REQUIREMENTS.width - scaledWidth) / 2;
     const offsetY = (PHOTO_REQUIREMENTS.height - scaledHeight) / 2;
     
-    // Draw the masked and cropped image onto the white background, centered
+    // Draw the masked image onto the white background, centered
     outputCtx.drawImage(
-      croppedCanvas,
-      0, 0, croppedCanvas.width, croppedCanvas.height,
+      maskedCanvas,
+      0, 0, maskedCanvas.width, maskedCanvas.height,
       offsetX, offsetY, scaledWidth, scaledHeight
     );
     
@@ -192,7 +135,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       outputCanvas.toBlob(
         (blob) => {
           if (blob) {
-            toast.success("Imagen procesada y recortada hasta los hombros");
+            toast.success("Imagen procesada exitosamente");
             resolve(blob);
           } else {
             reject(new Error('Error al crear el blob de la imagen'));
