@@ -1,4 +1,3 @@
-
 FROM node:18-alpine as build
 
 WORKDIR /app
@@ -30,7 +29,6 @@ RUN mkdir -p /app/.cache/transformers
 # Construir la aplicación para producción
 RUN npm run build
 
-# Etapa de producción
 FROM nginx:alpine
 
 # Instalar paquetes necesarios para correr navegadores minimales
@@ -58,8 +56,8 @@ export RUNNING_IN_DOCKER=true\n\
 nginx -g "daemon off;"\n\
 ' > /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
-# Exponer el puerto 8080 en lugar de 80
-EXPOSE 8080
+# Exponer el puerto 7170 en lugar de 8080
+EXPOSE 7170
 
 # Comando para iniciar nginx con variables de entorno
 CMD ["/docker-entrypoint.sh"]
