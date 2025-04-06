@@ -175,6 +175,19 @@ export const isDockerEnvironment = (): boolean => {
 
 // Función de utilidad para forzar el uso del método alternativo
 export const forceAlternativeMethodForDocker = (): boolean => {
-  // Siempre devolver true para forzar el uso del método alternativo en Docker
-  return true;
+  // Modificar para que no siempre devuelva true
+  // Verificar si hay una variable de entorno que fuerce este método
+  if (typeof process !== 'undefined' && 
+      process.env && 
+      process.env.FORCE_ALTERNATIVE_METHOD === 'true') {
+    return true;
+  }
+  // Para desarrollo local, verificar una flag en localStorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const forceAlternative = window.localStorage.getItem('forceAlternativeMethod');
+    if (forceAlternative === 'true') {
+      return true;
+    }
+  }
+  return false; // Por defecto, no forzar el método alternativo
 };
