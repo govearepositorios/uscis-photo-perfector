@@ -4,7 +4,7 @@ import { PHOTO_REQUIREMENTS } from "../photoRequirements";
 
 // Alternative method for background removal without ML models
 export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageElement): Promise<Blob> => {
-  console.log("Utilizando método alternativo de remoción de fondo");
+  console.log("Utilizando método alternativo optimizado de remoción de fondo");
   toast.info("Procesando imagen...", { duration: 3000 });
   
   try {
@@ -31,64 +31,66 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = imageData.data;
     
-    // ======= MÉTODO DE DETECCIÓN DE FONDO MEJORADO =======
+    // ======= MÉTODO MEJORADO DE DETECCIÓN DE FONDO =======
     
-    // 1. Detección de bordes para encontrar color de fondo
-    const borderPixels = [];
-    const borderWidth = Math.max(10, Math.floor(Math.min(width, height) * 0.05)); // Border 5% of smallest dimension
+    // 1. Detección de fondo usando múltiples técnicas
     
-    // Muestrear píxeles de los bordes (superior, inferior, izquierdo, derecho)
-    // Borde superior
+    // Para mejorar la detección, vamos a usar varios métodos y combinarlos
+    
+    // 1.1 Analizar bordes para encontrar el color de fondo predominante
+    const edgePixels = [];
+    const edgeWidth = Math.max(5, Math.floor(width * 0.03)); // 3% del ancho
+    
+    // Bordes superior e inferior
     for (let x = 0; x < width; x++) {
-      for (let y = 0; y < borderWidth; y++) {
+      for (let y = 0; y < edgeWidth; y++) {
         const idx = (y * width + x) * 4;
-        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
-      }
-    }
-    
-    // Borde inferior
-    for (let x = 0; x < width; x++) {
-      for (let y = height - borderWidth; y < height; y++) {
-        const idx = (y * width + x) * 4;
-        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
-      }
-    }
-    
-    // Bordes laterales (excluyendo las esquinas ya procesadas)
-    for (let y = borderWidth; y < height - borderWidth; y++) {
-      // Borde izquierdo
-      for (let x = 0; x < borderWidth; x++) {
-        const idx = (y * width + x) * 4;
-        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+        edgePixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
       }
       
-      // Borde derecho
-      for (let x = width - borderWidth; x < width; x++) {
+      for (let y = height - edgeWidth; y < height; y++) {
         const idx = (y * width + x) * 4;
-        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+        edgePixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
       }
     }
     
-    // 2. Encontrar colores más frecuentes en los bordes (probablemente el fondo)
+    // Bordes izquierdo y derecho (evitando duplicar las esquinas)
+    for (let y = edgeWidth; y < height - edgeWidth; y++) {
+      for (let x = 0; x < edgeWidth; x++) {
+        const idx = (y * width + x) * 4;
+        edgePixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+      }
+      
+      for (let x = width - edgeWidth; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        edgePixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+      }
+    }
+    
+    // 1.2 Encontrar los colores más frecuentes en los bordes con cuantización
     const colorCounts = new Map();
-    for (const [r, g, b] of borderPixels) {
-      // Agrupar colores similares usando cuantización simple
-      const quantizedR = Math.round(r / 10) * 10;
-      const quantizedG = Math.round(g / 10) * 10;
-      const quantizedB = Math.round(b / 10) * 10;
+    for (const [r, g, b] of edgePixels) {
+      // Agrupar colores similares 
+      const quantizedR = Math.round(r / 5) * 5;
+      const quantizedG = Math.round(g / 5) * 5;
+      const quantizedB = Math.round(b / 5) * 5;
       
       const colorKey = `${quantizedR},${quantizedG},${quantizedB}`;
       colorCounts.set(colorKey, (colorCounts.get(colorKey) || 0) + 1);
     }
     
-    // Ordenar colores por frecuencia y obtener el más común
+    // Ordenar colores por frecuencia
     const sortedColors = [...colorCounts.entries()].sort((a, b) => b[1] - a[1]);
-    const dominantColorKey = sortedColors[0][0];
-    const [bgR, bgG, bgB] = dominantColorKey.split(',').map(Number);
     
-    console.log("Color de fondo detectado:", bgR, bgG, bgB);
+    // Tomar los 3 colores más frecuentes (probablemente fondo)
+    const topBackgroundColors = sortedColors.slice(0, 3).map(([colorKey]) => {
+      const [r, g, b] = colorKey.split(',').map(Number);
+      return [r, g, b];
+    });
     
-    // 3. Crear máscara con detección de piel y umbral de color
+    console.log("Colores de fondo detectados:", topBackgroundColors);
+    
+    // 2. Crear máscara combinando diferentes métodos
     const resultCanvas = document.createElement('canvas');
     resultCanvas.width = width;
     resultCanvas.height = height;
@@ -102,7 +104,7 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
     resultCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
     resultCtx.fillRect(0, 0, width, height);
     
-    // Usar una versión suavizada como base
+    // Aplicar un suavizado leve para reducir ruido
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = width;
     tempCanvas.height = height;
@@ -112,7 +114,6 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
       throw new Error('No se pudo obtener el contexto del canvas temporal');
     }
     
-    // Aplicar un pequeño suavizado para reducir ruido
     tempCtx.filter = 'blur(1px)';
     tempCtx.drawImage(originalCanvas, 0, 0);
     
@@ -120,22 +121,25 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
     const tempData = tempCtx.getImageData(0, 0, width, height);
     const tempPixels = tempData.data;
     
-    // 4. Procesamiento de píxeles para crear máscara
+    // 3. Procesamiento de píxeles para crear máscara mejorada
     const maskData = new Uint8ClampedArray(pixels.length);
     
-    // Método híbrido uniendo detección de piel y distancia de color respecto al fondo
-    const skinLowerRGB = [60, 30, 20]; // Umbral bajo para detección de piel
-    const skinUpperRGB = [255, 220, 180]; // Umbral alto para detección de piel
+    // Parámetros para detección de piel
+    const skinLowerRGB = [60, 30, 20]; 
+    const skinUpperRGB = [255, 220, 180];
     
-    // Tolerancia para el color de fondo (mayor es más agresivo eliminando el fondo)
-    const backgroundTolerance = 30;
+    // Umbral de tolerancia para el fondo (más bajo = elimina menos, más alto = elimina más)
+    const backgroundTolerance = 25;
+    
+    // Cache para optimizar cálculos
+    const colorDistanceCache = new Map();
     
     for (let i = 0; i < pixels.length; i += 4) {
       const r = tempPixels[i];
       const g = tempPixels[i + 1];
       const b = tempPixels[i + 2];
       
-      // Máscara básica: 255 para conservar, 0 para fondo
+      // Máscara: 255 para conservar, 0 para fondo
       let isForeground = false;
       
       // 1. Verificar si es piel (alta probabilidad de ser persona)
@@ -144,33 +148,66 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
                     b >= skinLowerRGB[2] && b <= skinUpperRGB[2] &&
                     (r > g) && (g > b); // La piel humana suele tener R > G > B
       
-      // 2. Verificar si es similar al color de fondo
-      const colorDiff = Math.sqrt(
-        Math.pow(r - bgR, 2) +
-        Math.pow(g - bgG, 2) +
-        Math.pow(b - bgB, 2)
-      );
+      // 2. Verificar si es similar a alguno de los colores de fondo detectados
+      let isBackground = false;
       
-      const isBackground = colorDiff < backgroundTolerance;
+      // Calcular distancia a los colores de fondo más frecuentes
+      for (const [bgR, bgG, bgB] of topBackgroundColors) {
+        const colorKey = `${r},${g},${b}-${bgR},${bgG},${bgB}`;
+        
+        let colorDiff;
+        if (colorDistanceCache.has(colorKey)) {
+          colorDiff = colorDistanceCache.get(colorKey);
+        } else {
+          colorDiff = Math.sqrt(
+            Math.pow(r - bgR, 2) +
+            Math.pow(g - bgG, 2) +
+            Math.pow(b - bgB, 2)
+          );
+          colorDistanceCache.set(colorKey, colorDiff);
+        }
+        
+        if (colorDiff < backgroundTolerance) {
+          isBackground = true;
+          break;
+        }
+      }
       
-      // 3. Combinación de criterios
+      // 3. Combinación mejorada de criterios
       if (isSkin || !isBackground) {
-        isForeground = true;
+        // Adicional: Verificar saturación para evitar eliminar ropa colorida
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const saturation = max > 0 ? (max - min) / max : 0;
+        
+        // Alta saturación indica colores vivos (probablemente no fondo)
+        if (saturation > 0.2) {
+          isForeground = true;
+        } else {
+          isForeground = isSkin || !isBackground;
+        }
       }
       
       // Establecer valores de máscara
-      maskData[i] = isForeground ? pixels[i] : 255;
-      maskData[i + 1] = isForeground ? pixels[i + 1] : 255;
-      maskData[i + 2] = isForeground ? pixels[i + 2] : 255;
-      maskData[i + 3] = 255; // Alpha siempre 255
+      if (isForeground) {
+        maskData[i] = pixels[i];
+        maskData[i + 1] = pixels[i + 1];
+        maskData[i + 2] = pixels[i + 2];
+        maskData[i + 3] = 255; // Alpha siempre 255
+      } else {
+        // Fondo blanco
+        maskData[i] = 255;
+        maskData[i + 1] = 255;
+        maskData[i + 2] = 255;
+        maskData[i + 3] = 255;
+      }
     }
     
-    // 5. Refinamiento de la máscara
-    // Aplicar resultado al canvas con fondo blanco
+    // 4. Aplicar resultado al canvas con fondo blanco
     const finalImageData = new ImageData(maskData, width, height);
     resultCtx.putImageData(finalImageData, 0, 0);
     
-    // 6. Escalar y ajustar al tamaño final
+    // 5. Escalar y ajustar al tamaño final
     const outputCanvas = document.createElement('canvas');
     outputCanvas.width = PHOTO_REQUIREMENTS.width;
     outputCanvas.height = PHOTO_REQUIREMENTS.height;
@@ -217,7 +254,7 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
   } catch (error) {
     console.error("Error en la eliminación de fondo:", error);
     
-    // Si falla, usar método básico de recorte como respaldo
+    // Si falla, usar método simple de respaldo
     return useBasicCroppingFallback(imageElement);
   }
 };

@@ -72,17 +72,11 @@ export const resizeAndCropImage = async (imageBlob: Blob): Promise<Blob> => {
   }
 };
 
-// Type augmentation for Navigator to include deviceMemory
-interface NavigatorWithMemory extends Navigator {
-  deviceMemory?: number;
-}
-
-// Detect if running in Docker environment - always return true for now
+// Estas funciones de detección ya no son necesarias, siempre usamos el método alternativo
 export const isDockerEnvironment = (): boolean => {
   return true;
 };
 
-// Función de utilidad para forzar el uso del método alternativo - always return true for now
 export const forceAlternativeMethodForDocker = (): boolean => {
   return true;
 };
