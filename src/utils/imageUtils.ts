@@ -1,3 +1,4 @@
+
 import { PHOTO_REQUIREMENTS } from "./photoRequirements";
 
 // Load an image from a file or blob
@@ -76,69 +77,12 @@ interface NavigatorWithMemory extends Navigator {
   deviceMemory?: number;
 }
 
-// Detect if running in Docker environment
+// Detect if running in Docker environment - always return true for now
 export const isDockerEnvironment = (): boolean => {
-  // Más métodos robustos para detectar Docker
-  
-  // 1. Verificar variables de entorno explícitas de Docker
-  if (typeof process !== 'undefined' && 
-      process.env && 
-      (process.env.USE_ALTERNATIVE_BACKGROUND_REMOVAL === 'true' || 
-       process.env.DOCKER_CONTAINER === 'true' ||
-       process.env.RUNNING_IN_DOCKER === 'true')) {
-    console.log("Detectado entorno Docker mediante variables de entorno");
-    return true;
-  }
-  
-  // 2. Verificar si estamos en un navegador con limitaciones de WebGL/WebGPU
-  // que suelen ocurrir en contenedores
-  const hasLimitedGPUCapabilities = (): boolean => {
-    try {
-      // Detectar si WebGL está disponible con capacidades limitadas
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      
-      if (!gl) {
-        console.log("WebGL no disponible - posible entorno Docker");
-        return true;
-      }
-      
-      // Verificar si WebGPU está disponible (generalmente no en Docker)
-      if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
-        console.log("WebGPU disponible - probablemente no es Docker");
-        return false;
-      }
-      
-      return false;
-    } catch (e) {
-      console.log("Error al detectar capacidades GPU:", e);
-      return true; // Ante la duda, asumir limitaciones
-    }
-  };
-  
-  // SIEMPRE ASUMIR DOCKER EN CASOS DE DUDA
   return true;
 };
 
-// Función de utilidad para forzar el uso del método alternativo
+// Función de utilidad para forzar el uso del método alternativo - always return true for now
 export const forceAlternativeMethodForDocker = (): boolean => {
-  // Para Docker, SIEMPRE usar el método alternativo
-  if (typeof window !== 'undefined' && (window as any).DOCKER_CONTAINER === true) {
-    return true;
-  }
-  
-  // Si estamos en Docker, forzar el método alternativo
-  if (isDockerEnvironment()) {
-    return true;
-  }
-  
-  // Para desarrollo local, verificar una flag en localStorage
-  if (typeof window !== 'undefined' && window.localStorage) {
-    const forceAlternative = window.localStorage.getItem('forceAlternativeMethod');
-    if (forceAlternative === 'true') {
-      return true;
-    }
-  }
-  
-  return false;
+  return true;
 };

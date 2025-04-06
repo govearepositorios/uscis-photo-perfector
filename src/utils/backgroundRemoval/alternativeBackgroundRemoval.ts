@@ -5,12 +5,10 @@ import { PHOTO_REQUIREMENTS } from "../photoRequirements";
 // Alternative method for background removal without ML models
 export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageElement): Promise<Blob> => {
   console.log("Utilizando método alternativo de remoción de fondo");
-  toast.info("Utilizando método simplificado para el procesamiento de la imagen", { duration: 3000 });
+  toast.info("Procesando imagen...", { duration: 3000 });
   
   try {
-    // Enfoque mejorado para Docker: método híbrido que combina algoritmos de detección y reemplazo
-    
-    // 1. Crear canvas con las dimensiones de la imagen original
+    // Crear canvas con las dimensiones de la imagen original
     const originalCanvas = document.createElement('canvas');
     const ctx = originalCanvas.getContext('2d', { willReadFrequently: true });
     
@@ -18,225 +16,216 @@ export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageEle
       throw new Error('No se pudo obtener el contexto del canvas');
     }
     
-    // Dibujar la imagen en el canvas original
-    originalCanvas.width = imageElement.naturalWidth;
-    originalCanvas.height = imageElement.naturalHeight;
-    ctx.drawImage(imageElement, 0, 0);
+    // Obtener dimensiones reales de la imagen
+    const width = imageElement.naturalWidth || imageElement.width;
+    const height = imageElement.naturalHeight || imageElement.height;
     
-    // 2. Crear canvas para el resultado final de tamaño USCIS
+    console.log(`Procesando imagen de ${width}x${height} píxeles`);
+    
+    // Dibujar la imagen en el canvas original
+    originalCanvas.width = width;
+    originalCanvas.height = height;
+    ctx.drawImage(imageElement, 0, 0, width, height);
+    
+    // Obtener datos de la imagen
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    
+    // ======= MÉTODO DE DETECCIÓN DE FONDO MEJORADO =======
+    
+    // 1. Detección de bordes para encontrar color de fondo
+    const borderPixels = [];
+    const borderWidth = Math.max(10, Math.floor(Math.min(width, height) * 0.05)); // Border 5% of smallest dimension
+    
+    // Muestrear píxeles de los bordes (superior, inferior, izquierdo, derecho)
+    // Borde superior
+    for (let x = 0; x < width; x++) {
+      for (let y = 0; y < borderWidth; y++) {
+        const idx = (y * width + x) * 4;
+        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+      }
+    }
+    
+    // Borde inferior
+    for (let x = 0; x < width; x++) {
+      for (let y = height - borderWidth; y < height; y++) {
+        const idx = (y * width + x) * 4;
+        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+      }
+    }
+    
+    // Bordes laterales (excluyendo las esquinas ya procesadas)
+    for (let y = borderWidth; y < height - borderWidth; y++) {
+      // Borde izquierdo
+      for (let x = 0; x < borderWidth; x++) {
+        const idx = (y * width + x) * 4;
+        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+      }
+      
+      // Borde derecho
+      for (let x = width - borderWidth; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        borderPixels.push([pixels[idx], pixels[idx+1], pixels[idx+2]]);
+      }
+    }
+    
+    // 2. Encontrar colores más frecuentes en los bordes (probablemente el fondo)
+    const colorCounts = new Map();
+    for (const [r, g, b] of borderPixels) {
+      // Agrupar colores similares usando cuantización simple
+      const quantizedR = Math.round(r / 10) * 10;
+      const quantizedG = Math.round(g / 10) * 10;
+      const quantizedB = Math.round(b / 10) * 10;
+      
+      const colorKey = `${quantizedR},${quantizedG},${quantizedB}`;
+      colorCounts.set(colorKey, (colorCounts.get(colorKey) || 0) + 1);
+    }
+    
+    // Ordenar colores por frecuencia y obtener el más común
+    const sortedColors = [...colorCounts.entries()].sort((a, b) => b[1] - a[1]);
+    const dominantColorKey = sortedColors[0][0];
+    const [bgR, bgG, bgB] = dominantColorKey.split(',').map(Number);
+    
+    console.log("Color de fondo detectado:", bgR, bgG, bgB);
+    
+    // 3. Crear máscara con detección de piel y umbral de color
     const resultCanvas = document.createElement('canvas');
-    resultCanvas.width = PHOTO_REQUIREMENTS.width;
-    resultCanvas.height = PHOTO_REQUIREMENTS.height;
-    const resultCtx = resultCanvas.getContext('2d');
+    resultCanvas.width = width;
+    resultCanvas.height = height;
+    const resultCtx = resultCanvas.getContext('2d', { willReadFrequently: true });
     
     if (!resultCtx) {
       throw new Error('No se pudo obtener el contexto del canvas resultante');
     }
     
-    // 3. Rellenar canvas resultante con fondo blanco
-    resultCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
-    resultCtx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
-    
-    // 4. Obtener datos de la imagen para procesamiento
-    const imageData = ctx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
-    const data = imageData.data;
-    
-    // 5. Detectar rostro usando un método simplificado (basado en detección de piel)
-    // Este enfoque es muy simple pero efectivo para fotos de carnet
-    const faceRegions = [];
-    const skinColorLowerRGB = [100, 40, 20]; // Umbral bajo para detección de piel
-    const skinColorUpperRGB = [255, 200, 170]; // Umbral alto para detección de piel
-    
-    // Crear una máscara para la piel
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = originalCanvas.width;
-    maskCanvas.height = originalCanvas.height;
-    const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-    
-    if (!maskCtx) {
-      throw new Error('No se pudo obtener el contexto del canvas de máscara');
-    }
-    
-    // Dibujar la imagen en el canvas de máscara
-    maskCtx.drawImage(imageElement, 0, 0);
-    const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    const maskPixels = maskData.data;
-    
-    // Detectar piel y crear máscara
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      
-      // Verificar si el pixel está en el rango de color de piel
-      if (r >= skinColorLowerRGB[0] && r <= skinColorUpperRGB[0] &&
-          g >= skinColorLowerRGB[1] && g <= skinColorUpperRGB[1] &&
-          b >= skinColorLowerRGB[2] && b <= skinColorUpperRGB[2]) {
-        maskPixels[i] = 255;     // R
-        maskPixels[i + 1] = 255; // G
-        maskPixels[i + 2] = 255; // B
-        maskPixels[i + 3] = 255; // Alpha - opaco
-      } else {
-        maskPixels[i] = 0;       // R
-        maskPixels[i + 1] = 0;   // G
-        maskPixels[i + 2] = 0;   // B
-        maskPixels[i + 3] = 0;   // Alpha - transparente
-      }
-    }
-    
-    // Aplicar la máscara al canvas para refinamiento
-    maskCtx.putImageData(maskData, 0, 0);
-    
-    // 6. Crear nueva imagen combinando el fondo blanco con la imagen original
-    const processedCanvas = document.createElement('canvas');
-    processedCanvas.width = originalCanvas.width;
-    processedCanvas.height = originalCanvas.height;
-    const processedCtx = processedCanvas.getContext('2d');
-    
-    if (!processedCtx) {
-      throw new Error('No se pudo obtener el contexto del canvas procesado');
-    }
-    
     // Rellenar con fondo blanco
-    processedCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
-    processedCtx.fillRect(0, 0, processedCanvas.width, processedCanvas.height);
+    resultCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
+    resultCtx.fillRect(0, 0, width, height);
     
-    // Aplicar la imagen original usando la máscara como guía
-    processedCtx.drawImage(imageElement, 0, 0);
+    // Usar una versión suavizada como base
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
     
-    // 7. Aplicar técnica de umbral adaptativo para mejorar la segmentación
-    const processedData = processedCtx.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
-    const processedPixels = processedData.data;
-    
-    // Detectar colores de bordes (asumiendo que son parte del fondo)
-    const borderSize = 20; // pixels from each edge
-    const edgeColors = [];
-    
-    // Sample colors from the image borders
-    for (let y = 0; y < borderSize; y++) {
-      for (let x = 0; x < originalCanvas.width; x++) {
-        const i = (y * originalCanvas.width + x) * 4;
-        edgeColors.push([data[i], data[i + 1], data[i + 2]]);
-      }
+    if (!tempCtx) {
+      throw new Error('No se pudo obtener el contexto del canvas temporal');
     }
     
-    for (let y = originalCanvas.height - borderSize; y < originalCanvas.height; y++) {
-      for (let x = 0; x < originalCanvas.width; x++) {
-        const i = (y * originalCanvas.width + x) * 4;
-        edgeColors.push([data[i], data[i + 1], data[i + 2]]);
-      }
-    }
+    // Aplicar un pequeño suavizado para reducir ruido
+    tempCtx.filter = 'blur(1px)';
+    tempCtx.drawImage(originalCanvas, 0, 0);
     
-    for (let x = 0; x < borderSize; x++) {
-      for (let y = borderSize; y < originalCanvas.height - borderSize; y++) {
-        const i = (y * originalCanvas.width + x) * 4;
-        edgeColors.push([data[i], data[i + 1], data[i + 2]]);
-      }
-    }
+    // Obtener datos para procesamiento
+    const tempData = tempCtx.getImageData(0, 0, width, height);
+    const tempPixels = tempData.data;
     
-    for (let x = originalCanvas.width - borderSize; x < originalCanvas.width; x++) {
-      for (let y = borderSize; y < originalCanvas.height - borderSize; y++) {
-        const i = (y * originalCanvas.width + x) * 4;
-        edgeColors.push([data[i], data[i + 1], data[i + 2]]);
-      }
-    }
+    // 4. Procesamiento de píxeles para crear máscara
+    const maskData = new Uint8ClampedArray(pixels.length);
     
-    // Calculate average edge color (likely background color)
-    let sumR = 0, sumG = 0, sumB = 0;
-    for (const color of edgeColors) {
-      sumR += color[0];
-      sumG += color[1];
-      sumB += color[2];
-    }
+    // Método híbrido uniendo detección de piel y distancia de color respecto al fondo
+    const skinLowerRGB = [60, 30, 20]; // Umbral bajo para detección de piel
+    const skinUpperRGB = [255, 220, 180]; // Umbral alto para detección de piel
     
-    const avgR = sumR / edgeColors.length;
-    const avgG = sumG / edgeColors.length;
-    const avgB = sumB / edgeColors.length;
+    // Tolerancia para el color de fondo (mayor es más agresivo eliminando el fondo)
+    const backgroundTolerance = 30;
     
-    console.log("Color de fondo detectado:", avgR, avgG, avgB);
-    
-    // 8. Refinamiento final: distinguir entre fondo y sujeto
-    // ALGORITMO MEJORADO ESPECÍFICAMENTE PARA DOCKER: Umbral adaptativo con mayor tolerancia
-    const tolerance = 60;  // Aumentado para entornos Docker
-    
-    for (let i = 0; i < processedPixels.length; i += 4) {
-      const r = processedPixels[i];
-      const g = processedPixels[i + 1];
-      const b = processedPixels[i + 2];
+    for (let i = 0; i < pixels.length; i += 4) {
+      const r = tempPixels[i];
+      const g = tempPixels[i + 1];
+      const b = tempPixels[i + 2];
       
-      // Calcular diferencia con el color promedio de borde
-      const diff = Math.sqrt(
-        Math.pow(r - avgR, 2) +
-        Math.pow(g - avgG, 2) +
-        Math.pow(b - avgB, 2)
+      // Máscara básica: 255 para conservar, 0 para fondo
+      let isForeground = false;
+      
+      // 1. Verificar si es piel (alta probabilidad de ser persona)
+      const isSkin = r >= skinLowerRGB[0] && r <= skinUpperRGB[0] &&
+                    g >= skinLowerRGB[1] && g <= skinUpperRGB[1] &&
+                    b >= skinLowerRGB[2] && b <= skinUpperRGB[2] &&
+                    (r > g) && (g > b); // La piel humana suele tener R > G > B
+      
+      // 2. Verificar si es similar al color de fondo
+      const colorDiff = Math.sqrt(
+        Math.pow(r - bgR, 2) +
+        Math.pow(g - bgG, 2) +
+        Math.pow(b - bgB, 2)
       );
       
-      // Si la diferencia es menor que la tolerancia, es parte del fondo
-      if (diff < tolerance) {
-        processedPixels[i] = 255;     // R - blanco
-        processedPixels[i + 1] = 255; // G - blanco
-        processedPixels[i + 2] = 255; // B - blanco
+      const isBackground = colorDiff < backgroundTolerance;
+      
+      // 3. Combinación de criterios
+      if (isSkin || !isBackground) {
+        isForeground = true;
       }
       
-      // Mantener los píxeles de piel intactos (basado en la máscara)
-      const maskAlpha = maskPixels[i + 3];
-      if (maskAlpha > 200) {  // Si es parte de la piel (según la máscara)
-        // No modificar - mantener colores originales
-        processedPixels[i] = data[i];
-        processedPixels[i + 1] = data[i + 1];
-        processedPixels[i + 2] = data[i + 2];
-      }
+      // Establecer valores de máscara
+      maskData[i] = isForeground ? pixels[i] : 255;
+      maskData[i + 1] = isForeground ? pixels[i + 1] : 255;
+      maskData[i + 2] = isForeground ? pixels[i + 2] : 255;
+      maskData[i + 3] = 255; // Alpha siempre 255
     }
     
-    // Aplicar los cambios al canvas procesado
-    processedCtx.putImageData(processedData, 0, 0);
+    // 5. Refinamiento de la máscara
+    // Aplicar resultado al canvas con fondo blanco
+    const finalImageData = new ImageData(maskData, width, height);
+    resultCtx.putImageData(finalImageData, 0, 0);
     
-    // 9. Escalar y centrar la imagen en el canvas final
-    const scaleWidth = PHOTO_REQUIREMENTS.width / processedCanvas.width;
-    const scaleHeight = PHOTO_REQUIREMENTS.height / processedCanvas.height;
+    // 6. Escalar y ajustar al tamaño final
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = PHOTO_REQUIREMENTS.width;
+    outputCanvas.height = PHOTO_REQUIREMENTS.height;
+    const outputCtx = outputCanvas.getContext('2d');
+    
+    if (!outputCtx) {
+      throw new Error('No se pudo obtener el contexto del canvas de salida');
+    }
+    
+    // Establecer fondo blanco
+    outputCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
+    outputCtx.fillRect(0, 0, PHOTO_REQUIREMENTS.width, PHOTO_REQUIREMENTS.height);
+    
+    // Calcular escalado manteniendo proporciones
+    const scaleWidth = PHOTO_REQUIREMENTS.width / width;
+    const scaleHeight = PHOTO_REQUIREMENTS.height / height;
     const scale = Math.min(scaleWidth, scaleHeight);
     
-    const newWidth = processedCanvas.width * scale;
-    const newHeight = processedCanvas.height * scale;
-    const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
-    const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
+    const scaledWidth = width * scale;
+    const scaledHeight = height * scale;
+    const offsetX = (PHOTO_REQUIREMENTS.width - scaledWidth) / 2;
+    const offsetY = (PHOTO_REQUIREMENTS.height - scaledHeight) / 2;
     
-    // 10. Dibujar en el canvas final
-    // Primero asegurar que el fondo es blanco
-    resultCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
-    resultCtx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
-    // Luego dibujar la imagen procesada
-    resultCtx.drawImage(processedCanvas, x, y, newWidth, newHeight);
+    // Dibujar imagen final con fondo blanco
+    outputCtx.drawImage(resultCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
     
-    console.log("Imagen procesada con algoritmo alternativo mejorado para Docker");
+    console.log("Procesamiento completo - imagen con fondo blanco generada");
     
-    // Convertir a blob y devolver
+    // Convertir canvas a blob
     return new Promise((resolve, reject) => {
-      resultCanvas.toBlob(
+      outputCanvas.toBlob(
         (blob) => {
           if (blob) {
             toast.success("Imagen procesada correctamente");
             resolve(blob);
           } else {
-            reject(new Error('Error al crear el blob de la imagen'));
+            reject(new Error('Error al generar la imagen final'));
           }
         },
         'image/png',
         1.0
       );
     });
-  } catch (canvasError) {
-    console.error("Error en el algoritmo de eliminación de fondo alternativo:", canvasError);
+  } catch (error) {
+    console.error("Error en la eliminación de fondo:", error);
     
-    // Si falla el algoritmo alternativo, usar un método más simple de recorte
-    return useBasicCroppingFallback(imageElement, canvasError);
+    // Si falla, usar método básico de recorte como respaldo
+    return useBasicCroppingFallback(imageElement);
   }
 };
 
-// Basic fallback method when all other methods fail
-const useBasicCroppingFallback = async (imageElement: HTMLImageElement, originalError: Error): Promise<Blob> => {
-  console.log("Usando método de recorte básico...");
-  toast.info("Utilizando método básico para el procesamiento de la imagen.");
+// Método básico de respaldo que simplemente recorta la imagen
+const useBasicCroppingFallback = async (imageElement: HTMLImageElement): Promise<Blob> => {
+  console.log("Usando método de respaldo básico (solo recorte)");
+  toast.warning("Usando método simplificado para procesar la imagen");
   
   const canvas = document.createElement('canvas');
   canvas.width = PHOTO_REQUIREMENTS.width;
@@ -247,22 +236,25 @@ const useBasicCroppingFallback = async (imageElement: HTMLImageElement, original
     throw new Error('No se pudo obtener el contexto del canvas');
   }
   
-  // Fill with white background
+  // Fondo blanco
   ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
-  // Calculate scaling to fit the image
-  const scaleWidth = PHOTO_REQUIREMENTS.width / imageElement.naturalWidth;
-  const scaleHeight = PHOTO_REQUIREMENTS.height / imageElement.naturalHeight;
+  // Escalado manteniendo proporciones
+  const width = imageElement.naturalWidth || imageElement.width;
+  const height = imageElement.naturalHeight || imageElement.height;
+  
+  const scaleWidth = PHOTO_REQUIREMENTS.width / width;
+  const scaleHeight = PHOTO_REQUIREMENTS.height / height;
   const scale = Math.min(scaleWidth, scaleHeight);
   
-  const newWidth = imageElement.naturalWidth * scale;
-  const newHeight = imageElement.naturalHeight * scale;
-  const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
-  const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
+  const scaledWidth = width * scale;
+  const scaledHeight = height * scale;
+  const offsetX = (PHOTO_REQUIREMENTS.width - scaledWidth) / 2;
+  const offsetY = (PHOTO_REQUIREMENTS.height - scaledHeight) / 2;
   
-  // Draw the image on the canvas
-  ctx.drawImage(imageElement, x, y, newWidth, newHeight);
+  // Dibujar imagen centrada
+  ctx.drawImage(imageElement, offsetX, offsetY, scaledWidth, scaledHeight);
   
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -271,7 +263,7 @@ const useBasicCroppingFallback = async (imageElement: HTMLImageElement, original
           console.log('Imagen procesada con método básico');
           resolve(blob);
         } else {
-          reject(new Error(`Error al crear el blob de la imagen: ${originalError.message}`));
+          reject(new Error('Error al crear la imagen final'));
         }
       },
       'image/png',
