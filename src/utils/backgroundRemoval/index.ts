@@ -16,7 +16,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     console.error('Error al procesar la imagen con IA:', error);
     toast.error("Fallando la IA, usando método simple...", { duration: 3000 });
     
-    // Fallback: simple resize and center on white background
+    // Fallback: simple resize and center on white background with shoulder crop
     return await simpleFallbackMethod(imageElement);
   }
 };
@@ -38,9 +38,10 @@ const simpleFallbackMethod = async (imageElement: HTMLImageElement): Promise<Blo
     ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Try to crop only head and shoulders in fallback method too
-    // Estimate that the top 40% of the image contains the head and shoulders
-    const cropHeight = imageElement.naturalHeight * 0.4;
+    // Try to crop only head and shoulders in fallback method
+    // For fallback, estimate that the top 40% of the image contains the head and shoulders
+    const cropHeight = imageElement.naturalHeight * 0.45; // Increased to 45% to include more of shoulders
+    const cropTop = imageElement.naturalHeight * 0.15; // Start 15% from the top to get head and shoulders
     const cropWidth = imageElement.naturalWidth;
     
     // Calculate scaling to fit the image
@@ -53,10 +54,10 @@ const simpleFallbackMethod = async (imageElement: HTMLImageElement): Promise<Blo
     const offsetX = (PHOTO_REQUIREMENTS.width - scaledWidth) / 2;
     const offsetY = (PHOTO_REQUIREMENTS.height - scaledHeight) / 2;
     
-    // Draw the original image onto the white background, centered, cropped to show just head and shoulders
+    // Draw the original image onto the white background, cropped and centered
     ctx.drawImage(
       imageElement,
-      0, 0, cropWidth, cropHeight,
+      0, cropTop, cropWidth, cropHeight,
       offsetX, offsetY, scaledWidth, scaledHeight
     );
     
@@ -65,7 +66,7 @@ const simpleFallbackMethod = async (imageElement: HTMLImageElement): Promise<Blo
       canvas.toBlob(
         (blob) => {
           if (blob) {
-            toast.success("Imagen procesada con método alternativo (recortada)");
+            toast.success("Imagen procesada con método alternativo (recortada hasta los hombros)");
             resolve(blob);
           } else {
             reject(new Error('Error al crear el blob de la imagen'));

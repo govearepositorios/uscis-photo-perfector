@@ -34,11 +34,10 @@ function resizeImageIfNeeded(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
   return false;
 }
 
-// Función para detectar la posición aproximada de los hombros basada en la altura de la imagen
+// Function to detect the approximate position of shoulders based on the image height
 function estimateShoulderPosition(height: number): number {
-  // En una foto típica, los hombros están aproximadamente a 1/4 o 1/3 de la altura total
-  // desde la parte superior de la imagen
-  return Math.round(height * 0.33); // Ajustamos a 1/3 de la altura
+  // In a typical photo, shoulders are approximately 1/3 of the total height from the top
+  return Math.round(height * 0.4); // Adjusted to 40% of height which should include shoulders
 }
 
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob> => {
@@ -92,10 +91,16 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     );
     const data = maskedImageData.data;
     
-    // Apply inverted mask to alpha channel
-    for (let i = 0; i < result[0].mask.data.length; i++) {
-      // Invert the mask value (1 - value) to keep the subject instead of the background
-      const alpha = Math.round((1 - result[0].mask.data[i]) * 255);
+    // Find person mask if it exists
+    const personMaskIndex = result.findIndex(item => item.label === 'person');
+    const maskToUse = personMaskIndex !== -1 ? result[personMaskIndex].mask : result[0].mask;
+    
+    // Apply mask to alpha channel
+    for (let i = 0; i < maskToUse.data.length; i++) {
+      // For person mask, use as is. For other masks, invert (1 - value)
+      const alpha = personMaskIndex !== -1
+        ? Math.round(maskToUse.data[i] * 255)
+        : Math.round((1 - maskToUse.data[i]) * 255);
       data[i * 4 + 3] = alpha;
     }
     
@@ -106,20 +111,15 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     const shoulderPosition = estimateShoulderPosition(maskedCanvas.height);
     console.log(`Estimated shoulder position: ${shoulderPosition} px from top`);
     
-    // Create a new canvas for the cropped image (up to shoulders)
-    const croppedCanvas = document.createElement('canvas');
-    
-    // Determine the position of the head in the image
-    // This es una estimación simple: buscamos la primera fila con píxeles no transparentes
-    const imageDataForHeadDetection = maskedCtx.getImageData(0, 0, maskedCanvas.width, maskedCanvas.height);
-    const dataForHeadDetection = imageDataForHeadDetection.data;
+    // Find the top of the head in the masked image
     let topPosition = 0;
+    const dataForHeadDetection = maskedCtx.getImageData(0, 0, maskedCanvas.width, maskedCanvas.height).data;
     
-    // Buscar el primer pixel no transparente desde arriba (el punto más alto de la cabeza)
+    // Find first non-transparent pixel from top
     outerLoop: for (let y = 0; y < maskedCanvas.height; y++) {
       for (let x = 0; x < maskedCanvas.width; x++) {
         const index = (y * maskedCanvas.width + x) * 4;
-        if (dataForHeadDetection[index + 3] > 50) { // Si el pixel no es transparente
+        if (dataForHeadDetection[index + 3] > 50) { // If pixel is not transparent
           topPosition = y;
           break outerLoop;
         }
@@ -128,27 +128,32 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     
     console.log(`Detected top of head at position: ${topPosition} px from top`);
     
-    // Calcular altura desde la parte superior de la cabeza hasta los hombros
-    const headToShoulderHeight = shoulderPosition - topPosition;
+    // Create canvas for cropped image
+    const croppedCanvas = document.createElement('canvas');
     
-    // Asegurarnos de que hay suficiente espacio para la cabeza
-    const minHeadHeight = Math.max(headToShoulderHeight, maskedCanvas.height * 0.3); // Al menos 30% de la altura total
+    // Calculate crop height to include from top of head to just below shoulders
+    // If topPosition is 0, use a default value (20% from top of image)
+    if (topPosition === 0) {
+      topPosition = Math.floor(maskedCanvas.height * 0.2);
+    }
     
-    // Calcular la nueva altura del canvas para incluir hasta los hombros
-    const croppedHeight = Math.min(minHeadHeight * 1.5, maskedCanvas.height - topPosition);
+    // Calculate height from top of head to shoulders, plus a bit more
+    const cropHeight = Math.min(
+      shoulderPosition - topPosition + maskedCanvas.height * 0.15, // Add 15% for below shoulders
+      maskedCanvas.height - topPosition
+    );
     
-    // Configurar el canvas recortado
     croppedCanvas.width = maskedCanvas.width;
-    croppedCanvas.height = croppedHeight;
+    croppedCanvas.height = cropHeight;
     const croppedCtx = croppedCanvas.getContext('2d');
     
     if (!croppedCtx) throw new Error('Could not get cropped canvas context');
     
-    // Dibujar solo la parte de la imagen hasta los hombros
+    // Draw only the portion of the image from top of head to below shoulders
     croppedCtx.drawImage(
       maskedCanvas,
-      0, topPosition, maskedCanvas.width, croppedHeight,
-      0, 0, croppedCanvas.width, croppedHeight
+      0, topPosition, maskedCanvas.width, cropHeight,
+      0, 0, croppedCanvas.width, croppedCanvas.height
     );
     
     console.log(`Image cropped to shoulders. New dimensions: ${croppedCanvas.width}x${croppedCanvas.height}`);
