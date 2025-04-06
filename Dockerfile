@@ -33,7 +33,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Instalar paquetes necesarios para correr navegadores minimales
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates wget
 
 # Copiar la configuración personalizada de nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
@@ -52,16 +52,10 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo 'export USE_ALTERNATIVE_BACKGROUND_REMOVAL=true' >> /entrypoint.sh && \
     echo 'export RUNNING_IN_DOCKER=true' >> /entrypoint.sh && \
     echo 'nginx -g "daemon off;"' >> /entrypoint.sh && \
-    chmod +x /entrypoint.sh && \
-    dos2unix /entrypoint.sh 2>/dev/null || true
+    chmod +x /entrypoint.sh
 
-# Modificar la configuración de Nginx para pasar variables de entorno
-RUN echo "\n\
-# Agregar variables de entorno de Docker\n\
-env DOCKER_CONTAINER;\n\
-env USE_ALTERNATIVE_BACKGROUND_REMOVAL;\n\
-env RUNNING_IN_DOCKER;\n\
-" >> /etc/nginx/conf.d/default.conf
+# Modificar correctamente la configuración de Nginx para pasar variables de entorno
+RUN sed -i '1i env DOCKER_CONTAINER;\nenv USE_ALTERNATIVE_BACKGROUND_REMOVAL;\nenv RUNNING_IN_DOCKER;' /etc/nginx/conf.d/default.conf
 
 # Exponer el puerto 7170
 EXPOSE 7170
