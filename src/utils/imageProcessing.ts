@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { ProcessedImage, ValidationResult } from "./photoRequirements";
 import { validateFile, validateProcessedImage } from "./photoValidation";
 import { loadImage, resizeAndCropImage } from "./imageUtils";
-import { removeBackground, useAlternativeBackgroundRemoval } from "./backgroundRemoval";
+import { removeBackground } from "./backgroundRemoval";
 
 // Re-export types and constants for backward compatibility
 export * from "./photoRequirements";
