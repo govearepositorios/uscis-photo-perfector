@@ -62,10 +62,10 @@ const Index = () => {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
               <Camera className="h-8 w-8 mr-2" />
-              <h1 className="text-2xl font-bold">USCIS Photo Perfector</h1>
+              <h1 className="text-2xl font-bold">USCIS PHOTO EDIT</h1>
             </div>
             <p className="text-sm text-blue-100">
-              Crea fotos para inmigración que cumplan con los requisitos oficiales
+              Edita y perfecciona fotos para trámites de inmigración
             </p>
           </div>
         </div>
