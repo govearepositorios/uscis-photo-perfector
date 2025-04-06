@@ -1,4 +1,3 @@
-
 import { PHOTO_REQUIREMENTS } from "./photoRequirements";
 
 // Load an image from a file or blob
@@ -117,71 +116,22 @@ export const isDockerEnvironment = (): boolean => {
     }
   };
   
-  // 3. Verificar características del navegador que suelen ser diferentes en Docker
-  const hasDockerBrowserFingerprint = (): boolean => {
-    if (typeof navigator === 'undefined') return false;
-    
-    // En Docker con Nginx, suele haber menos memoria disponible
-    const navWithMemory = navigator as NavigatorWithMemory;
-    if (navWithMemory.deviceMemory && navWithMemory.deviceMemory < 4) {
-      console.log("Memoria de dispositivo limitada - posible Docker");
-      return true;
-    }
-    
-    // En Docker, el userAgent puede contener indicaciones
-    const userAgent = navigator.userAgent.toLowerCase();
-    if (userAgent.includes('headless') || 
-        userAgent.includes('electron') || 
-        userAgent.includes('serverless')) {
-      console.log("User agent sugiere entorno contenedorizado");
-      return true;
-    }
-    
-    return false;
-  };
-  
-  // 4. Verificar rendimiento - los contenedores suelen tener CPU/memoria limitados
-  const hasLimitedPerformance = (): boolean => {
-    try {
-      // Prueba simple de rendimiento
-      const startTime = performance.now();
-      let result = 0;
-      for (let i = 0; i < 1000000; i++) {
-        result += Math.sqrt(i);
-      }
-      const endTime = performance.now();
-      const executionTime = endTime - startTime;
-      
-      // Si tarda más de 100ms, podría ser un entorno con recursos limitados
-      if (executionTime > 100) {
-        console.log("Rendimiento limitado detectado - posible Docker:", executionTime, "ms");
-        return true;
-      }
-      
-      return false;
-    } catch (e) {
-      return false;
-    }
-  };
-  
-  // Combinar múltiples métodos para una detección más confiable
-  const isDocker = hasLimitedGPUCapabilities() || 
-                   hasDockerBrowserFingerprint() || 
-                   hasLimitedPerformance();
-  
-  console.log("Resultado de detección de Docker:", isDocker);
-  return isDocker;
+  // SIEMPRE ASUMIR DOCKER EN CASOS DE DUDA
+  return true;
 };
 
 // Función de utilidad para forzar el uso del método alternativo
 export const forceAlternativeMethodForDocker = (): boolean => {
-  // Modificar para que no siempre devuelva true
-  // Verificar si hay una variable de entorno que fuerce este método
-  if (typeof process !== 'undefined' && 
-      process.env && 
-      process.env.FORCE_ALTERNATIVE_METHOD === 'true') {
+  // Para Docker, SIEMPRE usar el método alternativo
+  if (typeof window !== 'undefined' && (window as any).DOCKER_CONTAINER === true) {
     return true;
   }
+  
+  // Si estamos en Docker, forzar el método alternativo
+  if (isDockerEnvironment()) {
+    return true;
+  }
+  
   // Para desarrollo local, verificar una flag en localStorage
   if (typeof window !== 'undefined' && window.localStorage) {
     const forceAlternative = window.localStorage.getItem('forceAlternativeMethod');
@@ -189,5 +139,6 @@ export const forceAlternativeMethodForDocker = (): boolean => {
       return true;
     }
   }
-  return false; // Por defecto, no forzar el método alternativo
+  
+  return false;
 };
