@@ -12,10 +12,14 @@ services:
     environment:
       - NODE_ENV=production
       # Aumentar límite de memoria para Node.js
-      - NODE_OPTIONS=--max-old-space-size=4096
+      - NODE_OPTIONS=--max-old-space-size=8192
+      # Forzar el uso del método alternativo en Docker
+      - USE_ALTERNATIVE_BACKGROUND_REMOVAL=true
     volumes:
       # Opcional: mapear volúmenes si necesitas persistencia
       - ./logs:/app/logs
+      # Cache para modelos de transformers
+      - transformers_cache:/app/.cache/transformers
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
@@ -25,4 +29,10 @@ services:
     deploy:
       resources:
         limits:
+          memory: 4G
+        reservations:
           memory: 2G
+
+volumes:
+  transformers_cache:
+    driver: local

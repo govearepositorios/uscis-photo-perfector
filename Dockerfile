@@ -3,6 +3,12 @@ FROM node:18-alpine as build
 
 WORKDIR /app
 
+# Instalar dependencias necesarias para WASM
+RUN apk add --no-cache python3 make g++ 
+
+# Aumentar límite de memoria de Node.js para procesamiento de imágenes
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
 # Copiar archivos de dependencias
 COPY package*.json ./
 
@@ -11,6 +17,10 @@ RUN npm ci
 
 # Copiar el resto de archivos del proyecto
 COPY . .
+
+# Configurar variable de entorno para transformers.js
+ENV TRANSFORMERS_CACHE=/app/.cache/transformers
+RUN mkdir -p /app/.cache/transformers
 
 # Construir la aplicación para producción
 RUN npm run build

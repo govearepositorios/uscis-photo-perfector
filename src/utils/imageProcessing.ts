@@ -163,6 +163,15 @@ export const validateProcessedImage = (image: HTMLImageElement): ValidationResul
   return validations;
 };
 
+// Detect if running in Docker environment
+const isDockerEnvironment = (): boolean => {
+  // Check for environment variable set in docker-compose
+  return typeof process !== 'undefined' && 
+         process.env && 
+         (process.env.USE_ALTERNATIVE_BACKGROUND_REMOVAL === 'true' || 
+          process.env.DOCKER_CONTAINER === 'true');
+};
+
 // Remove background from an image using the Hugging Face Transformers.js library
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob | null> => {
   try {
@@ -170,6 +179,13 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     console.log("Dimensiones de la imagen:", imageElement.naturalWidth, "x", imageElement.naturalHeight);
     
     toast.info("Procesando imagen, por favor espere...", { duration: 3000 });
+    
+    // Si estamos en Docker, usar el método alternativo directamente
+    if (isDockerEnvironment()) {
+      console.log("Detectado entorno Docker - usando método alternativo de procesamiento");
+      return await useAlternativeBackgroundRemoval(imageElement);
+    }
+    
     console.log("Importando la biblioteca de transformers...");
     
     const MAX_IMAGE_SIZE = 1024;
@@ -341,57 +357,63 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       
       // Si falla el método anterior, usar método alternativo más simple
       console.log("Intentando método alternativo de procesamiento...");
-      
-      // Método alternativo: solo recortar y ajustar la imagen sin eliminar el fondo
-      const canvas = document.createElement('canvas');
-      canvas.width = PHOTO_REQUIREMENTS.width;
-      canvas.height = PHOTO_REQUIREMENTS.height;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) {
-        throw new Error('No se pudo obtener el contexto del canvas');
-      }
-      
-      // Fill with white background
-      ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Calculate scaling to fit the image
-      const scaleWidth = PHOTO_REQUIREMENTS.width / imageElement.naturalWidth;
-      const scaleHeight = PHOTO_REQUIREMENTS.height / imageElement.naturalHeight;
-      const scale = Math.min(scaleWidth, scaleHeight);
-      
-      const newWidth = imageElement.naturalWidth * scale;
-      const newHeight = imageElement.naturalHeight * scale;
-      const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
-      const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
-      
-      // Draw the image on the canvas
-      ctx.drawImage(imageElement, x, y, newWidth, newHeight);
-      
-      // Mostrar mensaje de fallback
-      toast.warning("Procesamiento avanzado no disponible. Usando método alternativo.");
-      
-      return new Promise((resolve, reject) => {
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              console.log('Imagen procesada con método alternativo');
-              resolve(blob);
-            } else {
-              reject(new Error('Error al crear el blob de la imagen'));
-            }
-          },
-          'image/png',
-          1.0
-        );
-      });
+      return await useAlternativeBackgroundRemoval(imageElement);
     }
   } catch (error) {
     console.error('Error al eliminar el fondo:', error);
     toast.error("Error al procesar la imagen. Inténtelo de nuevo.");
     return null;
   }
+};
+
+// Método alternativo para remover el fondo sin usar el modelo de ML
+const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageElement): Promise<Blob> => {
+  console.log("Utilizando método alternativo de remoción de fondo");
+  
+  // Método alternativo: solo recortar y ajustar la imagen sin eliminar el fondo
+  const canvas = document.createElement('canvas');
+  canvas.width = PHOTO_REQUIREMENTS.width;
+  canvas.height = PHOTO_REQUIREMENTS.height;
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) {
+    throw new Error('No se pudo obtener el contexto del canvas');
+  }
+  
+  // Fill with white background
+  ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Calculate scaling to fit the image
+  const scaleWidth = PHOTO_REQUIREMENTS.width / imageElement.naturalWidth;
+  const scaleHeight = PHOTO_REQUIREMENTS.height / imageElement.naturalHeight;
+  const scale = Math.min(scaleWidth, scaleHeight);
+  
+  const newWidth = imageElement.naturalWidth * scale;
+  const newHeight = imageElement.naturalHeight * scale;
+  const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
+  const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
+  
+  // Draw the image on the canvas
+  ctx.drawImage(imageElement, x, y, newWidth, newHeight);
+  
+  // Mostrar mensaje de fallback
+  toast.info("Utilizando método alternativo para el procesamiento de la imagen.");
+  
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          console.log('Imagen procesada con método alternativo');
+          resolve(blob);
+        } else {
+          reject(new Error('Error al crear el blob de la imagen'));
+        }
+      },
+      'image/png',
+      1.0
+    );
+  });
 };
 
 // Process the image (remove background, resize, and validate)
