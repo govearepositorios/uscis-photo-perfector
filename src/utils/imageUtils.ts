@@ -72,6 +72,11 @@ export const resizeAndCropImage = async (imageBlob: Blob): Promise<Blob> => {
   }
 };
 
+// Type augmentation for Navigator to include deviceMemory
+interface NavigatorWithMemory extends Navigator {
+  deviceMemory?: number;
+}
+
 // Detect if running in Docker environment
 export const isDockerEnvironment = (): boolean => {
   // Más métodos robustos para detectar Docker
@@ -117,7 +122,8 @@ export const isDockerEnvironment = (): boolean => {
     if (typeof navigator === 'undefined') return false;
     
     // En Docker con Nginx, suele haber menos memoria disponible
-    if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+    const navWithMemory = navigator as NavigatorWithMemory;
+    if (navWithMemory.deviceMemory && navWithMemory.deviceMemory < 4) {
       console.log("Memoria de dispositivo limitada - posible Docker");
       return true;
     }
