@@ -9,7 +9,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     console.log("Iniciando procesamiento avanzado de imagen:", imageElement.src.substring(0, 100) + "...");
     console.log("Dimensiones de la imagen:", imageElement.naturalWidth, "x", imageElement.naturalHeight);
     
-    toast.info("Procesando imagen con IA, por favor espere...", { duration: 5000 });
+    toast.info("Procesando imagen con IA, recortando hasta los hombros...", { duration: 5000 });
     
     return await advancedRemoveBackground(imageElement);
   } catch (error) {
@@ -38,20 +38,25 @@ const simpleFallbackMethod = async (imageElement: HTMLImageElement): Promise<Blo
     ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
+    // Try to crop only head and shoulders in fallback method too
+    // Estimate that the top 40% of the image contains the head and shoulders
+    const cropHeight = imageElement.naturalHeight * 0.4;
+    const cropWidth = imageElement.naturalWidth;
+    
     // Calculate scaling to fit the image
-    const scaleWidth = PHOTO_REQUIREMENTS.width / imageElement.naturalWidth;
-    const scaleHeight = PHOTO_REQUIREMENTS.height / imageElement.naturalHeight;
+    const scaleWidth = PHOTO_REQUIREMENTS.width / cropWidth;
+    const scaleHeight = PHOTO_REQUIREMENTS.height / cropHeight;
     const scale = Math.min(scaleWidth, scaleHeight);
     
-    const scaledWidth = imageElement.naturalWidth * scale;
-    const scaledHeight = imageElement.naturalHeight * scale;
+    const scaledWidth = cropWidth * scale;
+    const scaledHeight = cropHeight * scale;
     const offsetX = (PHOTO_REQUIREMENTS.width - scaledWidth) / 2;
     const offsetY = (PHOTO_REQUIREMENTS.height - scaledHeight) / 2;
     
-    // Draw the original image onto the white background, centered
+    // Draw the original image onto the white background, centered, cropped to show just head and shoulders
     ctx.drawImage(
       imageElement,
-      0, 0, imageElement.naturalWidth, imageElement.naturalHeight,
+      0, 0, cropWidth, cropHeight,
       offsetX, offsetY, scaledWidth, scaledHeight
     );
     
@@ -60,7 +65,7 @@ const simpleFallbackMethod = async (imageElement: HTMLImageElement): Promise<Blo
       canvas.toBlob(
         (blob) => {
           if (blob) {
-            toast.success("Imagen procesada con método alternativo");
+            toast.success("Imagen procesada con método alternativo (recortada)");
             resolve(blob);
           } else {
             reject(new Error('Error al crear el blob de la imagen'));
