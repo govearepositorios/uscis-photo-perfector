@@ -229,7 +229,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       
       // Configuración más compatible con entornos Docker
       const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512', {
-        progress_callback: (progress) => {
+        progress_callback: (progress: number) => {
           console.log(`Progreso de carga del modelo: ${Math.round(progress * 100)}%`);
         }
       });
