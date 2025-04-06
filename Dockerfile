@@ -1,3 +1,4 @@
+
 FROM node:18-alpine as build
 
 WORKDIR /app
@@ -40,7 +41,21 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copiar los archivos de construcción desde la etapa anterior
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Pasar variables de entorno a través de nginx
+# Configurar variables de entorno
+ENV DOCKER_CONTAINER=true
+ENV USE_ALTERNATIVE_BACKGROUND_REMOVAL=true
+ENV RUNNING_IN_DOCKER=true
+
+# Crear script de entrada con formato Unix y asegurar permisos
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'export DOCKER_CONTAINER=true' >> /entrypoint.sh && \
+    echo 'export USE_ALTERNATIVE_BACKGROUND_REMOVAL=true' >> /entrypoint.sh && \
+    echo 'export RUNNING_IN_DOCKER=true' >> /entrypoint.sh && \
+    echo 'nginx -g "daemon off;"' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh && \
+    dos2unix /entrypoint.sh 2>/dev/null || true
+
+# Modificar la configuración de Nginx para pasar variables de entorno
 RUN echo "\n\
 # Agregar variables de entorno de Docker\n\
 env DOCKER_CONTAINER;\n\
@@ -48,16 +63,8 @@ env USE_ALTERNATIVE_BACKGROUND_REMOVAL;\n\
 env RUNNING_IN_DOCKER;\n\
 " >> /etc/nginx/conf.d/default.conf
 
-# Crear un script de inicio personalizado
-RUN echo '#!/bin/sh\n\
-export DOCKER_CONTAINER=true\n\
-export USE_ALTERNATIVE_BACKGROUND_REMOVAL=true\n\
-export RUNNING_IN_DOCKER=true\n\
-nginx -g "daemon off;"\n\
-' > /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
-
-# Exponer el puerto 7170 en lugar de 8080
+# Exponer el puerto 7170
 EXPOSE 7170
 
-# Comando para iniciar nginx con variables de entorno
-CMD ["/docker-entrypoint.sh"]
+# Comando para iniciar nginx con el script correcto
+CMD ["/entrypoint.sh"]
