@@ -1,20 +1,20 @@
 
 import { toast } from "sonner";
-import { removeBackground as advancedRemoveBackground } from "./backgroundRemover";
+import { removeBackground as u2netRemoveBackground } from "./backgroundRemover";
 import { PHOTO_REQUIREMENTS } from "../photoRequirements";
 
-// Process image with AI-powered background removal
+// Process image with AI-powered background removal using U-2-Net
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob | null> => {
   try {
-    console.log("Iniciando procesamiento avanzado de imagen:", imageElement.src.substring(0, 100) + "...");
+    console.log("Iniciando procesamiento con U-2-Net:", imageElement.src.substring(0, 100) + "...");
     console.log("Dimensiones de la imagen:", imageElement.naturalWidth, "x", imageElement.naturalHeight);
     
-    toast.info("Procesando imagen con IA...", { duration: 5000 });
+    toast.info("Procesando imagen con IA (U-2-Net)...", { duration: 5000 });
     
-    return await advancedRemoveBackground(imageElement);
+    return await u2netRemoveBackground(imageElement);
   } catch (error) {
-    console.error('Error al procesar la imagen con IA:', error);
-    toast.error("Fallando la IA, usando método simple...", { duration: 3000 });
+    console.error('Error al procesar la imagen con U-2-Net:', error);
+    toast.error("Fallando el procesamiento con U-2-Net, usando método simple...", { duration: 3000 });
     
     // Fallback: simple resize and center on white background
     return await simpleFallbackMethod(imageElement);

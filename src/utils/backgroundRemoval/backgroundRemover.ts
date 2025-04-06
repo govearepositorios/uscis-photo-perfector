@@ -1,4 +1,3 @@
-
 import { PHOTO_REQUIREMENTS } from "../photoRequirements";
 import { toast } from "sonner";
 import { pipeline, env } from '@huggingface/transformers';
@@ -36,7 +35,7 @@ function resizeImageIfNeeded(canvas: HTMLCanvasElement, ctx: CanvasRenderingCont
 
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob> => {
   try {
-    console.log('Starting advanced background removal process...');
+    console.log('Starting U-2-Net based background removal...');
     
     // Create canvas to work with
     const canvas = document.createElement('canvas');
@@ -52,12 +51,24 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
     console.log('Image converted to base64');
     
-    // Create segmenter pipeline
-    console.log('Initializing segmentation model...');
-    const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512');
+    // Initialize the image-segmentation pipeline with a U-2-Net derived model
+    // Using "Xenova/u2net-portrait" which is a portrait-specialized version of U-2-Net
+    console.log('Loading portrait segmentation model...');
+    const segmenter = await pipeline(
+      'image-segmentation', 
+      'Xenova/u2net-portrait', 
+      { 
+        quantized: true, // Use quantized model for better performance
+        progress_callback: (progress: any) => {
+          if (progress && progress.status) {
+            console.log(`Model loading: ${progress.status} ${progress.progress ? Math.round(progress.progress * 100) + '%' : ''}`);
+          }
+        }
+      }
+    );
     
-    // Process the image with the segmentation model
-    console.log('Processing with segmentation model...');
+    // Process the image to get the mask
+    console.log('Processing with portrait segmentation model...');
     const result = await segmenter(imageData);
     
     console.log('Segmentation result:', result);
@@ -78,24 +89,26 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     maskedCtx.drawImage(canvas, 0, 0);
     
     // Apply the mask
-    const maskedImageData = maskedCtx.getImageData(
-      0, 0,
-      maskedCanvas.width,
-      maskedCanvas.height
-    );
+    const maskedImageData = maskedCtx.getImageData(0, 0, maskedCanvas.width, maskedCanvas.height);
     const data = maskedImageData.data;
     
-    // Find person mask if it exists
-    const personMaskIndex = result.findIndex(item => item.label === 'person');
-    const maskToUse = personMaskIndex !== -1 ? result[personMaskIndex].mask : result[0].mask;
+    // Get the portrait mask from the result (U-2-Net specialized for portraits)
+    const maskData = result[0].mask.data;
     
-    // Apply mask to alpha channel
-    for (let i = 0; i < maskToUse.data.length; i++) {
-      // For person mask, use as is. For other masks, invert (1 - value)
-      const alpha = personMaskIndex !== -1
-        ? Math.round(maskToUse.data[i] * 255)
-        : Math.round((1 - maskToUse.data[i]) * 255);
-      data[i * 4 + 3] = alpha;
+    // Apply mask to alpha channel - for U-2-Net portrait model, higher values indicate the person/foreground
+    for (let i = 0; i < maskData.length; i++) {
+      // U-2-Net portrait model typically outputs foreground as higher values
+      // We use a threshold to make the mask more definitive
+      const threshold = 0.5;
+      const alpha = maskData[i] > threshold ? 255 : 0; // Binary mask for cleaner results
+      
+      // If this is background (alpha == 0), make it pure white
+      if (alpha === 0) {
+        data[i * 4] = 255; // R
+        data[i * 4 + 1] = 255; // G
+        data[i * 4 + 2] = 255; // B
+      }
+      // Keep the original person pixels (alpha == 255)
     }
     
     maskedCtx.putImageData(maskedImageData, 0, 0);
@@ -113,7 +126,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     outputCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
     outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
     
-    // Calculate scaling to fit the image with transparency
+    // Calculate scaling to fit the image
     const scaleWidth = PHOTO_REQUIREMENTS.width / maskedCanvas.width;
     const scaleHeight = PHOTO_REQUIREMENTS.height / maskedCanvas.height;
     const scale = Math.min(scaleWidth, scaleHeight);
@@ -135,7 +148,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       outputCanvas.toBlob(
         (blob) => {
           if (blob) {
-            toast.success("Imagen procesada exitosamente");
+            toast.success("Imagen procesada con U-2-Net");
             resolve(blob);
           } else {
             reject(new Error('Error al crear el blob de la imagen'));
@@ -146,7 +159,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       );
     });
   } catch (error) {
-    console.error('Error in advanced background removal:', error);
+    console.error('Error in U-2-Net background removal:', error);
     throw error;
   }
 };
