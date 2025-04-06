@@ -1,10 +1,41 @@
-
 import { PHOTO_REQUIREMENTS } from "../photoRequirements";
 import { toast } from "sonner";
+import { pipeline, env } from '@huggingface/transformers';
+
+// Configure transformers.js to use web storage and not download to disk
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+const MAX_IMAGE_DIMENSION = 1024;
+
+function resizeImageIfNeeded(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, image: HTMLImageElement) {
+  let width = image.naturalWidth;
+  let height = image.naturalHeight;
+
+  if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    if (width > height) {
+      height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+      width = MAX_IMAGE_DIMENSION;
+    } else {
+      width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+      height = MAX_IMAGE_DIMENSION;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(image, 0, 0, width, height);
+    return true;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(image, 0, 0);
+  return false;
+}
 
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob> => {
   try {
-    console.log('Starting simple background removal process...');
+    console.log('Starting advanced background removal process...');
     
     // Create canvas to work with
     const canvas = document.createElement('canvas');
@@ -12,14 +43,58 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     
     if (!ctx) throw new Error('Could not get canvas context');
     
-    // Set canvas to input image dimensions
-    canvas.width = imageElement.naturalWidth;
-    canvas.height = imageElement.naturalHeight;
+    // Resize image if needed and draw it to canvas
+    const wasResized = resizeImageIfNeeded(canvas, ctx, imageElement);
+    console.log(`Image ${wasResized ? 'was' : 'was not'} resized. Final dimensions: ${canvas.width}x${canvas.height}`);
+    
+    // Get image data as base64
+    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+    console.log('Image converted to base64');
+    
+    // Create segmenter pipeline
+    console.log('Initializing segmentation model...');
+    const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512');
+    
+    // Process the image with the segmentation model
+    console.log('Processing with segmentation model...');
+    const result = await segmenter(imageData);
+    
+    console.log('Segmentation result:', result);
+    
+    if (!result || !Array.isArray(result) || result.length === 0 || !result[0].mask) {
+      throw new Error('Invalid segmentation result');
+    }
+    
+    // Create a new canvas for the masked image
+    const maskedCanvas = document.createElement('canvas');
+    maskedCanvas.width = canvas.width;
+    maskedCanvas.height = canvas.height;
+    const maskedCtx = maskedCanvas.getContext('2d');
+    
+    if (!maskedCtx) throw new Error('Could not get masked canvas context');
     
     // Draw original image
-    ctx.drawImage(imageElement, 0, 0);
+    maskedCtx.drawImage(canvas, 0, 0);
     
-    // Create output canvas with white background and USCIS dimensions
+    // Apply the mask
+    const maskedImageData = maskedCtx.getImageData(
+      0, 0,
+      maskedCanvas.width,
+      maskedCanvas.height
+    );
+    const data = maskedImageData.data;
+    
+    // Apply inverted mask to alpha channel
+    for (let i = 0; i < result[0].mask.data.length; i++) {
+      // Invert the mask value (1 - value) to keep the subject instead of the background
+      const alpha = Math.round((1 - result[0].mask.data[i]) * 255);
+      data[i * 4 + 3] = alpha;
+    }
+    
+    maskedCtx.putImageData(maskedImageData, 0, 0);
+    console.log('Mask applied successfully');
+    
+    // Create output canvas with USCIS dimensions and white background
     const outputCanvas = document.createElement('canvas');
     outputCanvas.width = PHOTO_REQUIREMENTS.width;
     outputCanvas.height = PHOTO_REQUIREMENTS.height;
@@ -31,20 +106,20 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     outputCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
     outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
     
-    // Calculate scaling to fit the image
-    const scaleWidth = PHOTO_REQUIREMENTS.width / canvas.width;
-    const scaleHeight = PHOTO_REQUIREMENTS.height / canvas.height;
+    // Calculate scaling to fit the image with transparency
+    const scaleWidth = PHOTO_REQUIREMENTS.width / maskedCanvas.width;
+    const scaleHeight = PHOTO_REQUIREMENTS.height / maskedCanvas.height;
     const scale = Math.min(scaleWidth, scaleHeight);
     
-    const scaledWidth = canvas.width * scale;
-    const scaledHeight = canvas.height * scale;
+    const scaledWidth = maskedCanvas.width * scale;
+    const scaledHeight = maskedCanvas.height * scale;
     const offsetX = (PHOTO_REQUIREMENTS.width - scaledWidth) / 2;
     const offsetY = (PHOTO_REQUIREMENTS.height - scaledHeight) / 2;
     
-    // Draw the original image onto the white background, centered
+    // Draw the masked image onto the white background, centered
     outputCtx.drawImage(
-      imageElement,
-      0, 0, imageElement.naturalWidth, imageElement.naturalHeight,
+      maskedCanvas,
+      0, 0, maskedCanvas.width, maskedCanvas.height,
       offsetX, offsetY, scaledWidth, scaledHeight
     );
     
@@ -64,7 +139,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       );
     });
   } catch (error) {
-    console.error('Error in simple background removal:', error);
+    console.error('Error in advanced background removal:', error);
     throw error;
   }
 };
