@@ -58,7 +58,6 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       'image-segmentation', 
       'Xenova/u2net-portrait', 
       { 
-        quantized: true, // Use quantized model for better performance
         progress_callback: (progress: any) => {
           if (progress && progress.status) {
             console.log(`Model loading: ${progress.status} ${progress.progress ? Math.round(progress.progress * 100) + '%' : ''}`);
