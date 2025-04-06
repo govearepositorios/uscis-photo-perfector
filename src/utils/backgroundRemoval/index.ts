@@ -13,8 +13,14 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     toast.info("Procesando imagen, por favor espere...", { duration: 3000 });
     
     // Detectar Docker y decidir si usar método alternativo
-    const dockerDetected = isDockerEnvironment();
-    const forceAlternative = forceAlternativeMethodForDocker();
+    // Primero verificar las variables globales definidas en window
+    const windowDockerEnv = typeof window !== 'undefined' && (window as any).DOCKER_CONTAINER === true;
+    const windowForceAlt = typeof window !== 'undefined' && (window as any).USE_ALTERNATIVE_BACKGROUND_REMOVAL === true;
+    
+    // Usar las variables de window o caer en los métodos de detección
+    const dockerDetected = windowDockerEnv || isDockerEnvironment();
+    const forceAlternative = windowForceAlt || forceAlternativeMethodForDocker();
+    
     console.log("¿Entorno Docker detectado?", dockerDetected);
     console.log("¿Forzar método alternativo?", forceAlternative);
     

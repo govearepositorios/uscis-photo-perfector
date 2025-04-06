@@ -46,16 +46,16 @@ ENV DOCKER_CONTAINER=true
 ENV USE_ALTERNATIVE_BACKGROUND_REMOVAL=true
 ENV RUNNING_IN_DOCKER=true
 
+# Crear un archivo de configuración para las variables de entorno
+RUN mkdir -p /usr/share/nginx/html/config && \
+    echo "window.DOCKER_CONTAINER = true;" > /usr/share/nginx/html/config/env.js && \
+    echo "window.USE_ALTERNATIVE_BACKGROUND_REMOVAL = true;" >> /usr/share/nginx/html/config/env.js && \
+    echo "window.RUNNING_IN_DOCKER = true;" >> /usr/share/nginx/html/config/env.js
+
 # Crear script de entrada con formato Unix y asegurar permisos
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
-    echo 'export DOCKER_CONTAINER=true' >> /entrypoint.sh && \
-    echo 'export USE_ALTERNATIVE_BACKGROUND_REMOVAL=true' >> /entrypoint.sh && \
-    echo 'export RUNNING_IN_DOCKER=true' >> /entrypoint.sh && \
     echo 'nginx -g "daemon off;"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
-
-# Modificar correctamente la configuración de Nginx para pasar variables de entorno
-RUN sed -i '1i env DOCKER_CONTAINER;\nenv USE_ALTERNATIVE_BACKGROUND_REMOVAL;\nenv RUNNING_IN_DOCKER;' /etc/nginx/conf.d/default.conf
 
 # Exponer el puerto 7170
 EXPOSE 7170
