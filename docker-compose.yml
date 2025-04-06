@@ -1,0 +1,14 @@
+
+version: '3.8'
+
+services:
+  uscis-photo-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    # Si necesitas variables de entorno, descomenta y ajusta las siguientes líneas
+    # environment:
+    #   - NODE_ENV=production
