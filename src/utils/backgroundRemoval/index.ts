@@ -1,20 +1,19 @@
 
 import { toast } from "sonner";
-import { loadImage } from "../imageUtils";
-import { removeBackground as huggingfaceRemoveBackground } from "./backgroundRemover";
+import { removeBackground as simpleRemoveBackground } from "./backgroundRemover";
 
-// Remove background from an image using the most reliable method
+// Process image using simple method (no background removal, just resize and center)
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob | null> => {
   try {
-    console.log("Iniciando procesamiento de imagen:", imageElement.src.substring(0, 100) + "...");
+    console.log("Iniciando procesamiento básico de imagen:", imageElement.src.substring(0, 100) + "...");
     console.log("Dimensiones de la imagen:", imageElement.naturalWidth, "x", imageElement.naturalHeight);
     
     toast.info("Procesando imagen, por favor espere...", { duration: 3000 });
     
-    console.log("Usando método Hugging Face con modelo de segmentación");
-    return await huggingfaceRemoveBackground(imageElement);
+    console.log("Usando método de redimensionamiento simple");
+    return await simpleRemoveBackground(imageElement);
   } catch (error) {
-    console.error('Error al eliminar el fondo:', error);
+    console.error('Error al procesar la imagen:', error);
     toast.error("Error al procesar la imagen. Inténtelo de nuevo.");
     return null;
   }
