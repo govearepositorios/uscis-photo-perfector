@@ -229,8 +229,15 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       
       // Configuración más compatible con entornos Docker
       const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512', {
-        progress_callback: (progress: number) => {
-          console.log(`Progreso de carga del modelo: ${Math.round(progress * 100)}%`);
+        progress_callback: (progressInfo) => {
+          // Extract a percentage value from the progress info object
+          let percentage = 0;
+          if ('progress' in progressInfo) {
+            percentage = progressInfo.progress;
+          } else if ('loaded' in progressInfo && 'total' in progressInfo && progressInfo.total > 0) {
+            percentage = progressInfo.loaded / progressInfo.total;
+          }
+          console.log(`Progreso de carga del modelo: ${Math.round(percentage * 100)}%`);
         }
       });
       
