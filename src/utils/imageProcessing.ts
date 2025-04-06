@@ -223,14 +223,15 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       
       // Configure transformers.js
       env.allowLocalModels = false;
-      env.useBrowserCache = false;
+      env.useBrowserCache = true; // Utilizar caché para mejorar rendimiento en Docker
       
       console.log("Inicializando el modelo de segmentación...");
       
-      // Removed the 'quantized' option that was causing the error
-      // and use 'device' option to improve performance if available
+      // Configuración más compatible con entornos Docker
       const segmenter = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512', {
-        device: 'webgpu', // Will fallback to CPU if WebGPU is not available
+        progress_callback: (progress) => {
+          console.log(`Progreso de carga del modelo: ${Math.round(progress * 100)}%`);
+        }
       });
       
       console.log("Modelo inicializado correctamente");

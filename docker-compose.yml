@@ -11,6 +11,8 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      # Aumentar límite de memoria para Node.js
+      - NODE_OPTIONS=--max-old-space-size=4096
     volumes:
       # Opcional: mapear volúmenes si necesitas persistencia
       - ./logs:/app/logs
@@ -20,3 +22,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
