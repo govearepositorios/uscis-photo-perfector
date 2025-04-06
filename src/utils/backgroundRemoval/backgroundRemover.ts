@@ -50,7 +50,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     console.log(`Image ${wasResized ? 'was' : 'was not'} resized. Final dimensions: ${canvas.width}x${canvas.height}`);
     
     // Convert to base64 for model processing
-    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+    const imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
     
     console.log('Loading portrait segmentation model...');
     const segmenter = await pipeline(
@@ -66,7 +66,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     );
     
     console.log('Processing image with U-2-Net...');
-    const result = await segmenter(imageData);
+    const result = await segmenter(imageBase64);
     
     if (!result || !Array.isArray(result) || result.length === 0 || !result[0].mask) {
       throw new Error('Invalid segmentation result');
@@ -85,8 +85,8 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     maskedCtx.drawImage(canvas, 0, 0);
     
     // Apply mask to keep only the person
-    const imageData = maskedCtx.getImageData(0, 0, maskedCanvas.width, maskedCanvas.height);
-    const data = imageData.data;
+    const pixelData = maskedCtx.getImageData(0, 0, maskedCanvas.width, maskedCanvas.height);
+    const data = pixelData.data;
     const maskData = result[0].mask.data;
     
     // Apply threshold for cleaner mask - values above threshold are person, below are background
@@ -104,7 +104,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       }
     }
     
-    maskedCtx.putImageData(imageData, 0, 0);
+    maskedCtx.putImageData(pixelData, 0, 0);
     
     // Create final output canvas with USCIS dimensions
     const outputCanvas = document.createElement('canvas');
