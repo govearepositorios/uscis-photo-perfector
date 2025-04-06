@@ -1,6 +1,7 @@
+
 import { toast } from "sonner";
 import { PHOTO_REQUIREMENTS } from "./photoRequirements";
-import { loadImage, isDockerEnvironment } from "./imageUtils";
+import { loadImage, isDockerEnvironment, forceAlternativeMethodForDocker } from "./imageUtils";
 
 // Remove background from an image using the Hugging Face Transformers.js library
 export const removeBackground = async (imageElement: HTMLImageElement): Promise<Blob | null> => {
@@ -10,57 +11,17 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     
     toast.info("Procesando imagen, por favor espere...", { duration: 3000 });
     
-    // Si estamos en Docker, usar el método alternativo directamente
-    if (isDockerEnvironment()) {
-      console.log("Detectado entorno Docker - usando método alternativo de procesamiento");
+    // Detectar Docker y FORZAR el uso del método alternativo
+    const dockerDetected = isDockerEnvironment();
+    console.log("¿Entorno Docker detectado?", dockerDetected);
+    
+    if (dockerDetected || forceAlternativeMethodForDocker()) {
+      console.log("Detectado entorno Docker o limitaciones - FORZANDO método alternativo de procesamiento");
+      toast.info("Utilizando método optimizado para Docker", { duration: 4000 });
       return await useAlternativeBackgroundRemoval(imageElement);
     }
     
-    console.log("Importando la biblioteca de transformers...");
-    
-    const MAX_IMAGE_SIZE = 1024;
-    let imageToProcess = imageElement;
-    let needsResize = false;
-    
-    // Resize large images to improve performance
-    if (imageElement.naturalWidth > MAX_IMAGE_SIZE || imageElement.naturalHeight > MAX_IMAGE_SIZE) {
-      console.log("Redimensionando imagen para mejor rendimiento");
-      needsResize = true;
-      
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) {
-        throw new Error('No se pudo obtener el contexto del canvas para redimensionar');
-      }
-      
-      let width = imageElement.naturalWidth;
-      let height = imageElement.naturalHeight;
-      
-      if (width > height) {
-        height = Math.round((height * MAX_IMAGE_SIZE) / width);
-        width = MAX_IMAGE_SIZE;
-      } else {
-        width = Math.round((width * MAX_IMAGE_SIZE) / height);
-        height = MAX_IMAGE_SIZE;
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      ctx.drawImage(imageElement, 0, 0, width, height);
-      
-      const resizedImage = new Image();
-      resizedImage.src = canvas.toDataURL('image/jpeg', 0.9);
-      
-      // Wait for the resized image to load
-      await new Promise((resolve) => {
-        resizedImage.onload = resolve;
-      });
-      
-      imageToProcess = resizedImage;
-      console.log("Imagen redimensionada:", width, "x", height);
-    }
+    console.log("Usando método estándar de eliminación de fondo...");
     
     try {
       // Dynamically import the transformers library to reduce initial load time
@@ -69,7 +30,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       
       // Configure transformers.js
       env.allowLocalModels = false;
-      env.useBrowserCache = true; // Utilizar caché para mejorar rendimiento en Docker
+      env.useBrowserCache = true;
       
       console.log("Inicializando el modelo de segmentación...");
       
@@ -106,9 +67,9 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
       }
       
       // Draw image to canvas
-      canvas.width = imageToProcess.naturalWidth || imageToProcess.width;
-      canvas.height = imageToProcess.naturalHeight || imageToProcess.height;
-      ctx.drawImage(imageToProcess, 0, 0);
+      canvas.width = imageElement.naturalWidth || imageElement.width;
+      canvas.height = imageElement.naturalHeight || imageElement.height;
+      ctx.drawImage(imageElement, 0, 0);
       
       // Convert to base64 for processing
       console.log("Convirtiendo imagen a base64...");
@@ -196,52 +157,209 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
   }
 };
 
-// Método alternativo para remover el fondo sin usar el modelo de ML
+// Método alternativo mejorado para remover el fondo sin usar el modelo de ML
 export const useAlternativeBackgroundRemoval = async (imageElement: HTMLImageElement): Promise<Blob> => {
   console.log("Utilizando método alternativo de remoción de fondo");
+  toast.info("Utilizando método simplificado para el procesamiento de la imagen", { duration: 3000 });
   
-  // Método alternativo: solo recortar y ajustar la imagen sin eliminar el fondo
-  const canvas = document.createElement('canvas');
-  canvas.width = PHOTO_REQUIREMENTS.width;
-  canvas.height = PHOTO_REQUIREMENTS.height;
-  const ctx = canvas.getContext('2d');
-  
-  if (!ctx) {
-    throw new Error('No se pudo obtener el contexto del canvas');
+  // Intentar usar Canvas API para recortar el sujeto de la imagen
+  try {
+    // Crear un canvas con las dimensiones de la imagen original
+    const originalCanvas = document.createElement('canvas');
+    const ctx = originalCanvas.getContext('2d', { willReadFrequently: true });
+    
+    if (!ctx) {
+      throw new Error('No se pudo obtener el contexto del canvas');
+    }
+    
+    // Dibujar la imagen en el canvas original
+    originalCanvas.width = imageElement.naturalWidth;
+    originalCanvas.height = imageElement.naturalHeight;
+    ctx.drawImage(imageElement, 0, 0);
+    
+    // Obtener datos de la imagen
+    const imageData = ctx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+    const data = imageData.data;
+    
+    // Algoritmo simple para detectar bordes y eliminar fondo
+    // Asumiendo que el fondo es más claro y uniforme que el sujeto
+    
+    // 1. Detectar colores de bordes (asumiendo que son parte del fondo)
+    const edgePixels = [];
+    const borderSize = 10;
+    
+    // Recopilar los colores de los bordes
+    for (let y = 0; y < borderSize; y++) {
+      for (let x = 0; x < originalCanvas.width; x++) {
+        const i = (y * originalCanvas.width + x) * 4;
+        edgePixels.push([data[i], data[i + 1], data[i + 2]]);
+      }
+    }
+    
+    for (let y = originalCanvas.height - borderSize; y < originalCanvas.height; y++) {
+      for (let x = 0; x < originalCanvas.width; x++) {
+        const i = (y * originalCanvas.width + x) * 4;
+        edgePixels.push([data[i], data[i + 1], data[i + 2]]);
+      }
+    }
+    
+    for (let x = 0; x < borderSize; x++) {
+      for (let y = borderSize; y < originalCanvas.height - borderSize; y++) {
+        const i = (y * originalCanvas.width + x) * 4;
+        edgePixels.push([data[i], data[i + 1], data[i + 2]]);
+      }
+    }
+    
+    for (let x = originalCanvas.width - borderSize; x < originalCanvas.width; x++) {
+      for (let y = borderSize; y < originalCanvas.height - borderSize; y++) {
+        const i = (y * originalCanvas.width + x) * 4;
+        edgePixels.push([data[i], data[i + 1], data[i + 2]]);
+      }
+    }
+    
+    // Calcular el color promedio del borde (posible color de fondo)
+    let avgR = 0, avgG = 0, avgB = 0;
+    edgePixels.forEach(pixel => {
+      avgR += pixel[0];
+      avgG += pixel[1];
+      avgB += pixel[2];
+    });
+    
+    avgR = Math.round(avgR / edgePixels.length);
+    avgG = Math.round(avgG / edgePixels.length);
+    avgB = Math.round(avgB / edgePixels.length);
+    
+    console.log("Color de fondo detectado:", avgR, avgG, avgB);
+    
+    // 2. Crear un nuevo canvas para la imagen con fondo eliminado
+    const resultCanvas = document.createElement('canvas');
+    resultCanvas.width = PHOTO_REQUIREMENTS.width;
+    resultCanvas.height = PHOTO_REQUIREMENTS.height;
+    const resultCtx = resultCanvas.getContext('2d');
+    
+    if (!resultCtx) {
+      throw new Error('No se pudo obtener el contexto del canvas resultante');
+    }
+    
+    // Rellenar con fondo blanco
+    resultCtx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
+    resultCtx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
+    
+    // Crear una máscara simplificada
+    const tolerance = 35; // Tolerancia para la diferencia de color
+    
+    // Crear un nuevo ImageData para la imagen con fondo eliminado
+    const maskedImageData = ctx.createImageData(originalCanvas.width, originalCanvas.height);
+    const maskedData = maskedImageData.data;
+    
+    // Aplicar umbral para separar sujeto del fondo
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      
+      // Calcular la diferencia de color con el color promedio del borde
+      const diff = Math.sqrt(
+        Math.pow(r - avgR, 2) +
+        Math.pow(g - avgG, 2) +
+        Math.pow(b - avgB, 2)
+      );
+      
+      // Si la diferencia es menor que la tolerancia, es parte del fondo
+      if (diff < tolerance) {
+        // Hacer transparente (para el fondo)
+        maskedData[i] = 255;     // R - blanco
+        maskedData[i + 1] = 255; // G - blanco
+        maskedData[i + 2] = 255; // B - blanco
+        maskedData[i + 3] = 0;   // Alpha - transparente
+      } else {
+        // Mantener el color original (para el sujeto)
+        maskedData[i] = r;
+        maskedData[i + 1] = g;
+        maskedData[i + 2] = b;
+        maskedData[i + 3] = 255; // Alpha - opaco
+      }
+    }
+    
+    // Poner la imagen procesada en el canvas original
+    ctx.putImageData(maskedImageData, 0, 0);
+    
+    // Escalar y centrar la imagen en el canvas final
+    const scaleWidth = PHOTO_REQUIREMENTS.width / originalCanvas.width;
+    const scaleHeight = PHOTO_REQUIREMENTS.height / originalCanvas.height;
+    const scale = Math.min(scaleWidth, scaleHeight);
+    
+    const newWidth = originalCanvas.width * scale;
+    const newHeight = originalCanvas.height * scale;
+    const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
+    const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
+    
+    // Dibujar la imagen procesada en el canvas final
+    resultCtx.drawImage(originalCanvas, x, y, newWidth, newHeight);
+    
+    // Convertir a blob y devolver
+    return new Promise((resolve, reject) => {
+      resultCanvas.toBlob(
+        (blob) => {
+          if (blob) {
+            console.log('Imagen procesada con método alternativo mejorado');
+            toast.success("Imagen procesada correctamente");
+            resolve(blob);
+          } else {
+            reject(new Error('Error al crear el blob de la imagen'));
+          }
+        },
+        'image/png',
+        1.0
+      );
+    });
+  } catch (canvasError) {
+    console.error("Error en el algoritmo de eliminación de fondo alternativo:", canvasError);
+    
+    // Si falla el algoritmo alternativo, usar un método más simple de recorte
+    console.log("Usando método de recorte básico...");
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = PHOTO_REQUIREMENTS.width;
+    canvas.height = PHOTO_REQUIREMENTS.height;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      throw new Error('No se pudo obtener el contexto del canvas');
+    }
+    
+    // Fill with white background
+    ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Calculate scaling to fit the image
+    const scaleWidth = PHOTO_REQUIREMENTS.width / imageElement.naturalWidth;
+    const scaleHeight = PHOTO_REQUIREMENTS.height / imageElement.naturalHeight;
+    const scale = Math.min(scaleWidth, scaleHeight);
+    
+    const newWidth = imageElement.naturalWidth * scale;
+    const newHeight = imageElement.naturalHeight * scale;
+    const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
+    const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
+    
+    // Draw the image on the canvas
+    ctx.drawImage(imageElement, x, y, newWidth, newHeight);
+    
+    toast.info("Utilizando método básico para el procesamiento de la imagen.");
+    
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            console.log('Imagen procesada con método básico');
+            resolve(blob);
+          } else {
+            reject(new Error('Error al crear el blob de la imagen'));
+          }
+        },
+        'image/png',
+        1.0
+      );
+    });
   }
-  
-  // Fill with white background
-  ctx.fillStyle = PHOTO_REQUIREMENTS.backgroundColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-  // Calculate scaling to fit the image
-  const scaleWidth = PHOTO_REQUIREMENTS.width / imageElement.naturalWidth;
-  const scaleHeight = PHOTO_REQUIREMENTS.height / imageElement.naturalHeight;
-  const scale = Math.min(scaleWidth, scaleHeight);
-  
-  const newWidth = imageElement.naturalWidth * scale;
-  const newHeight = imageElement.naturalHeight * scale;
-  const x = (PHOTO_REQUIREMENTS.width - newWidth) / 2;
-  const y = (PHOTO_REQUIREMENTS.height - newHeight) / 2;
-  
-  // Draw the image on the canvas
-  ctx.drawImage(imageElement, x, y, newWidth, newHeight);
-  
-  // Mostrar mensaje de fallback
-  toast.info("Utilizando método alternativo para el procesamiento de la imagen.");
-  
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          console.log('Imagen procesada con método alternativo');
-          resolve(blob);
-        } else {
-          reject(new Error('Error al crear el blob de la imagen'));
-        }
-      },
-      'image/png',
-      1.0
-    );
-  });
 };
