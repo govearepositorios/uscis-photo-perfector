@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:80"  # Cambia el mapeo de puerto si es necesario
+      - "8080:8080"  # Mapear puerto 8080 del host al 8080 del contenedor
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -24,7 +24,7 @@ services:
       # Cache para modelos de transformers
       - transformers_cache:/app/.cache/transformers
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
       interval: 30s
       timeout: 10s
       retries: 3

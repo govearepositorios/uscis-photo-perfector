@@ -58,8 +58,8 @@ export RUNNING_IN_DOCKER=true\n\
 nginx -g "daemon off;"\n\
 ' > /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
-# Exponer el puerto 80
-EXPOSE 80
+# Exponer el puerto 8080 en lugar de 80
+EXPOSE 8080
 
 # Comando para iniciar nginx con variables de entorno
 CMD ["/docker-entrypoint.sh"]
