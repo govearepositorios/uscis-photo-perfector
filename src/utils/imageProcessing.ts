@@ -47,44 +47,15 @@ export const processImage = async (file: File): Promise<ProcessedImage> => {
       const noBackgroundBlob = await removeBackground(image);
       
       if (!noBackgroundBlob) {
-        console.error("removeBackground retornó null");
-        result.validations.push({
-          valid: false,
-          message: "No se pudo eliminar el fondo de la imagen.",
-          type: "error",
-        });
-        
-        // Intentar método alternativo: usar la imagen original
-        console.log("Intentando método alternativo - usar imagen original");
-        
-        // Resize and crop the original image
-        const processedBlob = await resizeAndCropImage(file);
-        result.processedUrl = URL.createObjectURL(processedBlob);
-        
-        // Load the processed image for validation
-        const processedImage = await loadImage(processedBlob);
-        
-        // Validate the processed image
-        const imageValidations = validateProcessedImage(processedImage);
-        result.validations = [...result.validations, ...imageValidations];
-        
-        // Agregar advertencia sobre el fondo
-        result.validations.push({
-          valid: false,
-          message: "No se pudo procesar el fondo. Asegúrese de que la foto tenga un fondo sólido.",
-          type: "warning",
-        });
-        
-        return result;
+        throw new Error("Fallo al eliminar el fondo");
       }
       
-      // Resize and crop
-      console.log("Redimensionando y recortando imagen...");
-      const processedBlob = await resizeAndCropImage(noBackgroundBlob);
-      result.processedUrl = URL.createObjectURL(processedBlob);
+      // Final image processing
+      console.log("Finalizando procesamiento...");
+      result.processedUrl = URL.createObjectURL(noBackgroundBlob);
       
       // Load the processed image for validation
-      const processedImage = await loadImage(processedBlob);
+      const processedImage = await loadImage(noBackgroundBlob);
       
       // Validate the processed image
       const imageValidations = validateProcessedImage(processedImage);
@@ -94,8 +65,8 @@ export const processImage = async (file: File): Promise<ProcessedImage> => {
     } catch (processingError) {
       console.error("Error durante el procesamiento:", processingError);
       
-      // Fallback: intentar solo redimensionar la imagen original
-      console.log("Utilizando fallback - solo redimensionar imagen original");
+      // Fallback to simple resize if background removal fails
+      console.log("Usando método alternativo de respaldo");
       
       const processedBlob = await resizeAndCropImage(file);
       result.processedUrl = URL.createObjectURL(processedBlob);
