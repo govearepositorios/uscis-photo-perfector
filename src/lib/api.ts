@@ -64,7 +64,8 @@ export async function generateContent(
 ): Promise<GeneratedContent> {
   const prompt = buildCaptionPrompt(service, contentType, tone, clinicName, clinicCity);
 
-  const response = await fetch('/api/anthropic/v1/messages', {
+  const baseUrl = import.meta.env.DEV ? '/api/anthropic' : 'https://api.anthropic.com';
+  const response = await fetch(`${baseUrl}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -102,7 +103,8 @@ export async function generateImage(
 ): Promise<GeneratedImage> {
   const enhancedPrompt = `${prompt}. Professional aesthetic clinic photography, clean white background with soft rose gold accents, luxury European medical clinic, high-end editorial beauty photography, natural daylight, 4K quality, no text, no watermarks.`;
 
-  const response = await fetch('/api/openai/v1/images/generations', {
+  const openaiBase = import.meta.env.DEV ? '/api/openai' : 'https://api.openai.com';
+  const response = await fetch(`${openaiBase}/v1/images/generations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
