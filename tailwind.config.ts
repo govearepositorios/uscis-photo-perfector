@@ -63,13 +63,16 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				uscis: {
-          blue: '#0057b7',
-          lightBlue: '#6699cc',
-          red: '#d9534f',
-          green: '#5cb85c',
-          gray: '#f8f9fa',
-          darkGray: '#495057'
+				kavea: {
+          rose: '#c25c7a',
+          'rose-light': '#f5d6e2',
+          'rose-pale': '#fdf0f4',
+          gold: '#b8922a',
+          'gold-light': '#f5e8c0',
+          'gold-pale': '#fdfaf0',
+          dark: '#1a1525',
+          cream: '#faf8f5',
+          muted: '#8a7a8a',
         }
 			},
 			borderRadius: {
