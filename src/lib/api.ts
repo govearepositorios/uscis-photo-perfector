@@ -64,8 +64,7 @@ export async function generateContent(
 ): Promise<GeneratedContent> {
   const prompt = buildCaptionPrompt(service, contentType, tone, clinicName, clinicCity);
 
-  const openaiBase = import.meta.env.DEV ? '/api/openai' : 'https://api.openai.com';
-  const response = await fetch(`${openaiBase}/v1/chat/completions`, {
+  const response = await fetch(`/api/openai/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -103,8 +102,7 @@ export async function generateImage(
   const base = prompt.slice(0, 950 - suffix.length);
   const enhancedPrompt = `${base}${suffix}`;
 
-  const openaiBase = import.meta.env.DEV ? '/api/openai' : 'https://api.openai.com';
-  const response = await fetch(`${openaiBase}/v1/images/generations`, {
+  const response = await fetch(`/api/openai/v1/images/generations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
