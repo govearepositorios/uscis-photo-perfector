@@ -119,48 +119,41 @@ export default function Settings() {
               <Key size={16} className="text-kavea-rose" />
             </div>
             <div>
-              <CardTitle className="text-base">API Keys de IA</CardTitle>
+              <CardTitle className="text-base">API Key de OpenAI</CardTitle>
               <CardDescription className="text-xs">
-                Necesarias para generar captions e imágenes automáticamente
+                Una sola key para todo: captions con GPT-4o-mini e imágenes con DALL-E 2
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
           <ApiKeyField
-            label="Claude API Key (Anthropic)"
-            value={form.claudeApiKey}
-            onChange={(v) => update('claudeApiKey', v)}
-            placeholder="sk-ant-api03-..."
-            helpUrl="https://console.anthropic.com/"
-            helpText="Usada para generar captions, hashtags y estrategias de contenido."
-            isSet={Boolean(form.claudeApiKey)}
-          />
-
-          <Separator />
-
-          <ApiKeyField
-            label="OpenAI API Key (DALL-E 3)"
+            label="OpenAI API Key"
             value={form.openaiApiKey}
             onChange={(v) => update('openaiApiKey', v)}
             placeholder="sk-..."
             helpUrl="https://platform.openai.com/api-keys"
-            helpText="Usada para generar imágenes para tus posts con DALL-E 3."
+            helpText="Usada para generar captions con GPT-4o-mini e imágenes con DALL-E 2. Una sola key para todo."
             isSet={Boolean(form.openaiApiKey)}
           />
 
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
-            <p className="font-medium mb-1">🔒 Seguridad de tus keys</p>
-            <p>Tus API keys se guardan solo en tu navegador (localStorage). Nunca salen de tu dispositivo a ningún servidor externo excepto directamente a Anthropic y OpenAI.</p>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-xs text-emerald-700">
+            <p className="font-medium mb-1">💰 Coste muy económico</p>
+            <p>Con OpenAI pagas solo lo que usas. Generar 5 posts completos (texto + imagen) cuesta aproximadamente <strong>$0.10</strong>. Puedes ver tu consumo en <a href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer" className="underline">platform.openai.com/usage</a>.</p>
           </div>
 
-          {(form.claudeApiKey || form.openaiApiKey) && (
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+            <p className="font-medium mb-1">🔒 Seguridad de tu key</p>
+            <p>Tu API key se guarda solo en tu navegador (localStorage). Nunca pasa por ningún servidor intermedio — va directamente a OpenAI.</p>
+          </div>
+
+          {form.openaiApiKey && (
             <button
               onClick={handleClearKeys}
               className="flex items-center gap-2 text-xs text-red-500 hover:text-red-700 transition-colors"
             >
               <Trash2 size={12} />
-              Eliminar todas las API keys
+              Eliminar API key
             </button>
           )}
         </CardContent>
