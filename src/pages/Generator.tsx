@@ -99,7 +99,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 export default function Generator() {
   const navigate = useNavigate();
-  const { settings, hasClaudeKey, hasOpenAIKey } = useSettings();
+  const { settings, hasOpenAIKey } = useSettings();
 
   const [step, setStep] = useState(1);
   const [serviceId, setServiceId] = useState('');
@@ -127,13 +127,13 @@ export default function Generator() {
     setGenerated(null);
     setImageUrl(null);
 
-    if (hasClaudeKey) {
+    if (hasOpenAIKey) {
       try {
         const result = await generateContent(
           selectedService,
           selectedContentType,
           selectedTone,
-          settings.claudeApiKey,
+          settings.openaiApiKey,
           settings.clinicName,
           settings.clinicCity,
         );
@@ -310,15 +310,15 @@ export default function Generator() {
           </div>
 
           {/* API key notice */}
-          {!hasClaudeKey && (
+          {!hasOpenAIKey && (
             <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-2">
               <AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0" />
               <p className="text-xs text-amber-700">
-                Sin API key de Claude se usarán plantillas predefinidas.{' '}
+                Sin API key de OpenAI se usarán plantillas predefinidas.{' '}
                 <button onClick={() => navigate('/settings')} className="underline hover:no-underline">
                   Configura tu key
                 </button>{' '}
-                para obtener captions personalizadas con IA.
+                para captions personalizadas con GPT-4o-mini e imágenes con DALL-E 2.
               </p>
             </div>
           )}
@@ -365,7 +365,7 @@ export default function Generator() {
             <div className="py-16 text-center">
               <Loader2 size={32} className="animate-spin text-kavea-rose mx-auto mb-4" />
               <p className="text-sm font-medium text-kavea-dark">
-                {hasClaudeKey ? 'Claude está creando tu contenido...' : 'Preparando plantillas...'}
+                {hasOpenAIKey ? 'GPT-4o-mini está creando tu contenido...' : 'Preparando plantillas...'}
               </p>
               <p className="text-xs text-kavea-muted mt-1">Esto puede tardar unos segundos</p>
             </div>
@@ -376,7 +376,7 @@ export default function Generator() {
             <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2">
               <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-medium text-red-700">Error al conectar con Claude API</p>
+                <p className="text-xs font-medium text-red-700">Error al conectar con OpenAI API</p>
                 <p className="text-xs text-red-600 mt-0.5">{error}</p>
                 <p className="text-xs text-red-600 mt-0.5">
                   Mostrando plantillas predefinidas.{' '}
@@ -398,7 +398,7 @@ export default function Generator() {
                     <p className="text-xs font-semibold text-kavea-muted uppercase tracking-wide">
                       Captions generadas
                     </p>
-                    {!hasClaudeKey && (
+                    {!hasOpenAIKey && (
                       <span className="text-xs text-amber-600">📋 Plantilla predefinida</span>
                     )}
                   </div>
@@ -512,7 +512,7 @@ export default function Generator() {
                     ) : (
                       <>
                         <Sparkles size={14} className="mr-2" />
-                        {imageUrl ? 'Regenerar imagen' : 'Generar imagen con DALL-E 3'}
+                        {imageUrl ? 'Regenerar imagen' : 'Generar imagen con DALL-E 2'}
                       </>
                     )}
                   </Button>

@@ -64,17 +64,15 @@ export async function generateContent(
 ): Promise<GeneratedContent> {
   const prompt = buildCaptionPrompt(service, contentType, tone, clinicName, clinicCity);
 
-  const baseUrl = import.meta.env.DEV ? '/api/anthropic' : 'https://api.anthropic.com';
-  const response = await fetch(`${baseUrl}/v1/messages`, {
+  const openaiBase = import.meta.env.DEV ? '/api/openai' : 'https://api.openai.com';
+  const response = await fetch(`${openaiBase}/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'gpt-4o-mini',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -82,18 +80,18 @@ export async function generateContent(
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Claude API error ${response.status}: ${err}`);
+    throw new Error(`OpenAI API error ${response.status}: ${err}`);
   }
 
   const data = await response.json();
-  const text: string = data.content?.[0]?.text ?? '';
+  const text: string = data.choices?.[0]?.message?.content ?? '';
 
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found in response');
     return JSON.parse(jsonMatch[0]) as GeneratedContent;
   } catch {
-    throw new Error('No se pudo parsear la respuesta de Claude. Verifica tu API key.');
+    throw new Error('No se pudo parsear la respuesta de OpenAI. Verifica tu API key.');
   }
 }
 
@@ -101,7 +99,9 @@ export async function generateImage(
   prompt: string,
   apiKey: string,
 ): Promise<GeneratedImage> {
-  const enhancedPrompt = `${prompt}. Professional aesthetic clinic photography, clean white background with soft rose gold accents, luxury European medical clinic, high-end editorial beauty photography, natural daylight, 4K quality, no text, no watermarks.`;
+  const suffix = ' Luxury aesthetic clinic, white background, rose gold accents, editorial beauty, no text.';
+  const base = prompt.slice(0, 950 - suffix.length);
+  const enhancedPrompt = `${base}${suffix}`;
 
   const openaiBase = import.meta.env.DEV ? '/api/openai' : 'https://api.openai.com';
   const response = await fetch(`${openaiBase}/v1/images/generations`, {
@@ -111,10 +111,9 @@ export async function generateImage(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'dall-e-3',
+      model: 'dall-e-2',
       prompt: enhancedPrompt,
       size: '1024x1024',
-      quality: 'standard',
       n: 1,
     }),
   });
